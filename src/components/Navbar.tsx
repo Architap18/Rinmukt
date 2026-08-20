@@ -46,7 +46,7 @@ export function Navbar() {
           </div>
           <div>
             <span className="font-display text-xl font-extrabold tracking-tight text-foreground">
-              Karza<span className="text-primary">Untangler</span>
+              Rin<span className="text-primary">mukt</span>
             </span>
             <span className="block text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
               Informal Debt Normalizer

@@ -1,0 +1,265 @@
+export type Language = 'en' | 'hi' | 'mr';
+
+export const translations = {
+  en: {
+    // Header
+    appTitle: 'Rinmukt',
+    appSubtitle: 'Understand your informal debts in one place.',
+    privateStorage: 'Private & Local Storage',
+
+    // Dashboard & Summary
+    totalInformalDebt: 'TOTAL INFORMAL DEBT',
+    totalDebtSubtext: 'Sum of all active informal borrowing',
+    activeDebts: 'ACTIVE DEBTS',
+    debtSingular: 'Debt',
+    debtPlural: 'Debts',
+    activeDebtsSubtext: 'Recorded in your local register',
+    noActiveDebtsSubtext: 'No active debts recorded',
+    yourDebtRegister: 'Your Debt Register',
+    manualEntry: 'Manual Entry',
+    registerSubtitle: 'Add or manage your informal borrowings below.',
+    voiceInput: 'Voice Input',
+    comingSoon: 'Coming Soon 🎙️',
+    addDebt: 'Add Debt',
+
+    // Voice Input - Step 2
+    voiceInputTitle: '🎤 Tell us about your debts',
+    voiceInputSubtitle: 'Speak in any language — English, Hindi, or Marathi',
+    voiceListening: 'Listening...',
+    voiceStop: 'Stop Recording',
+    voiceTranscriptLabel: 'You said:',
+    voiceUseThis: 'Use this',
+    voiceRecordAgain: 'Record again',
+    voiceCancel: 'Cancel',
+    voicePermissionDenied: 'Microphone access was denied. Please allow microphone permissions in your browser settings.',
+    voiceNotSupported: 'Speech recognition is not supported in this browser. Please type your debt details below.',
+    voiceEmptyTranscript: 'No speech detected. Please try again and speak clearly.',
+    voiceError: 'Something went wrong with voice recording. Please try again.',
+    voiceFallbackLabel: 'Type your debt details',
+    voiceFallbackPlaceholder: 'e.g. Mere chacha ko paanch hazaar dene hain aur mahajan ko das hazaar, paanch percent mahina lagta hai.',
+    voiceStartLabel: 'Start Speaking',
+    voiceOrType: 'or type instead',
+
+    // Debt Card
+    owed: 'OWED',
+    dueDate: 'Due Date:',
+    notSet: 'Not set',
+    edit: 'Edit',
+    delete: 'Delete',
+    noInterest: 'No interest',
+    perWeek: '{rate}% per week',
+    perMonth: '{rate}% per month',
+    perYear: '{rate}% per year',
+    oneTimeFee: '{rate}% one-time fee',
+
+    // Add/Edit Modal
+    addTitle: 'Add Informal Debt',
+    editTitle: 'Edit Informal Debt',
+    addSub: 'Record borrowing details accurately',
+    editSub: 'Update lender or terms',
+    whoDoYouOwe: 'Who do you owe?',
+    lenderPlaceholder: 'e.g. Chacha, Kirana Store, Sahukar, KreditBee',
+    amountOwed: 'Amount Owed (₹)',
+    amountPlaceholder: 'e.g. 5000',
+    interestUnit: 'Interest Unit',
+    interestRate: 'Interest Rate (%)',
+    ratePlaceholder: 'e.g. 5',
+    repaymentNotes: 'Repayment Notes',
+    notesPlaceholder: 'e.g. Pay interest every month; return principal when harvest arrives.',
+    dueDateLabel: 'Due Date',
+    cancel: 'Cancel',
+    saveDebt: 'Save Debt',
+    updateDebt: 'Update Debt',
+
+    // Interest Unit Options
+    unitNone: 'No interest',
+    unitWeek: 'Per week',
+    unitMonth: 'Per month',
+    unitYear: 'Per year',
+    unitOneTime: 'One-time',
+
+    // Validation Errors
+    errLender: 'Please enter who you owe this money to.',
+    errAmount: 'Please enter a valid amount greater than 0.',
+    errRate: 'Please specify the interest rate percentage.',
+
+    // Empty State
+    emptyTitle: 'No debts added yet',
+    emptySubtext: 'Start by adding your first debt to keep track of informal borrowing from shopkeepers, relatives, moneylenders, chit funds, or apps.',
+    addFirstDebt: 'Add Your First Debt',
+  },
+  hi: {
+    // Header
+    appTitle: 'ऋणमुक्त',
+    appSubtitle: 'अपने अनौपचारिक कर्जों को एक जगह समझें।',
+    privateStorage: 'निजी एवं लोकल स्टोरेज',
+
+    // Dashboard & Summary
+    totalInformalDebt: 'कुल अनौपचारिक कर्ज',
+    totalDebtSubtext: 'सभी सक्रिय अनौपचारिक कर्जों का कुल योग',
+    activeDebts: 'सक्रिय कर्ज',
+    debtSingular: 'कर्ज',
+    debtPlural: 'कर्ज',
+    activeDebtsSubtext: 'आपके लोकल रजिस्टर में दर्ज',
+    noActiveDebtsSubtext: 'कोई सक्रिय कर्ज दर्ज नहीं है',
+    yourDebtRegister: 'आपका कर्ज रजिस्टर',
+    manualEntry: 'मैनुअल प्रविष्टि',
+    registerSubtitle: 'नीचे अपने अनौपचारिक कर्ज जोड़ें या प्रबंधित करें।',
+    voiceInput: 'वॉइस इनपुट',
+    comingSoon: 'जल्द आ रहा है 🎙️',
+    addDebt: 'नया कर्ज जोड़ें',
+
+    // Voice Input - Step 2
+    voiceInputTitle: '🎤 अपने कर्जों के बारे में बताएं',
+    voiceInputSubtitle: 'किसी भी भाषा में बोलें — हिंदी, मराठी या अंग्रेज़ी',
+    voiceListening: 'सुन रहा हूँ...',
+    voiceStop: 'रिकॉर्डिंग रोकें',
+    voiceTranscriptLabel: 'आपने कहा:',
+    voiceUseThis: 'इसका उपयोग करें',
+    voiceRecordAgain: 'फिर से रिकॉर्ड करें',
+    voiceCancel: 'रद्द करें',
+    voicePermissionDenied: 'माइक्रोफोन की अनुमति नहीं मिली। कृपया अपने ब्राउज़र सेटिंग में माइक्रोफोन अनुमति दें।',
+    voiceNotSupported: 'यह ब्राउज़र स्पीच रिकॉग्निशन को सपोर्ट नहीं करता। कृपया नीचे टाइप करें।',
+    voiceEmptyTranscript: 'कोई आवाज़ नहीं मिली। कृपया साफ़ बोलकर दोबारा कोशिश करें।',
+    voiceError: 'वॉइस रिकॉर्डिंग में कोई त्रुटि हुई। कृपया पुनः प्रयास करें।',
+    voiceFallbackLabel: 'अपने कर्ज का विवरण टाइप करें',
+    voiceFallbackPlaceholder: 'जैसे: मेरे चाचा को पाँच हज़ार देने हैं और महाजन को दस हज़ार, पाँच परसेंट महीना लगता है।',
+    voiceStartLabel: 'बोलना शुरू करें',
+    voiceOrType: 'या टाइप करें',
+
+    // Debt Card
+    owed: 'देय राशि',
+    dueDate: 'देय तिथि:',
+    notSet: 'निर्धारित नहीं',
+    edit: 'संशोधन',
+    delete: 'हटाएं',
+    noInterest: 'कोई ब्याज नहीं',
+    perWeek: '{rate}% प्रति सप्ताह',
+    perMonth: '{rate}% प्रति माह',
+    perYear: '{rate}% प्रति वर्ष',
+    oneTimeFee: '{rate}% एकमुश्त शुल्क',
+
+    // Add/Edit Modal
+    addTitle: 'अनौपचारिक कर्ज जोड़ें',
+    editTitle: 'कर्ज विवरण बदलें',
+    addSub: 'उधार का विवरण सटीक रूप से दर्ज करें',
+    editSub: 'ऋणदाता या शर्तें अपडेट करें',
+    whoDoYouOwe: 'आपने किससे उधार लिया है?',
+    lenderPlaceholder: 'जैसे चाचा, गुप्ता किराना, साहूकार, क्रेडिटबी',
+    amountOwed: 'ऋण राशि (₹)',
+    amountPlaceholder: 'जैसे 5000',
+    interestUnit: 'ब्याज की समय-अवधि',
+    interestRate: 'ब्याज दर (%)',
+    ratePlaceholder: 'जैसे 5',
+    repaymentNotes: 'पुनर्भुगतान टिप्पणी',
+    notesPlaceholder: 'जैसे हर महीने ब्याज दें; फसल आने पर मूलधन लौटाएं।',
+    dueDateLabel: 'देय तिथि',
+    cancel: 'रद्द करें',
+    saveDebt: 'कर्ज सुरक्षित करें',
+    updateDebt: 'कर्ज अपडेट करें',
+
+    // Interest Unit Options
+    unitNone: 'कोई ब्याज नहीं',
+    unitWeek: 'प्रति सप्ताह',
+    unitMonth: 'प्रति माह',
+    unitYear: 'प्रति वर्ष',
+    unitOneTime: 'एकमुश्त (One-time)',
+
+    // Validation Errors
+    errLender: 'कृपया दर्ज करें कि आपने किससे पैसे लिए हैं।',
+    errAmount: 'कृपया 0 से अधिक मान्य राशि दर्ज करें।',
+    errRate: 'कृपया ब्याज दर प्रतिशत निर्दिष्ट करें।',
+
+    // Empty State
+    emptyTitle: 'अभी तक कोई कर्ज नहीं जोड़ा गया',
+    emptySubtext: 'दुकानदारों, रिश्तेदारों, साहूकारों, चिट फंड या ऐप्स से अनौपचारिक उधार पर नज़र रखने के लिए अपना पहला कर्ज जोड़ें।',
+    addFirstDebt: 'अपना पहला कर्ज जोड़ें',
+  },
+  mr: {
+    // Header
+    appTitle: 'ऋणमुक्त',
+    appSubtitle: 'तुमचे अनौपचारिक कर्ज एकाच ठिकाणी समजून घ्या.',
+    privateStorage: 'खाजगी आणि लोकल स्टोरेज',
+
+    // Dashboard & Summary
+    totalInformalDebt: 'एकूण अनौपचारिक कर्ज',
+    totalDebtSubtext: 'सर्व सक्रिय अनौपचारिक कर्जांची बेरीज',
+    activeDebts: 'सक्रिय कर्जे',
+    debtSingular: 'कर्ज',
+    debtPlural: 'कर्जे',
+    activeDebtsSubtext: 'तुमच्या लोकल रजिस्टरमध्ये नोंदवले आहे',
+    noActiveDebtsSubtext: 'कोणतेही सक्रिय कर्ज नोंदवलेले नाही',
+    yourDebtRegister: 'तुमचे कर्ज रजिस्टर',
+    manualEntry: 'मॅन्युअल नोंद',
+    registerSubtitle: 'खाली आपले अनौपचारिक कर्ज जोडा किंवा व्यवस्थापित करा.',
+    voiceInput: 'व्हॉइस इनपुट',
+    comingSoon: 'लवकरच येत आहे 🎙️',
+    addDebt: 'नवीन कर्ज जोडा',
+
+    // Voice Input - Step 2
+    voiceInputTitle: '🎤 तुमच्या कर्जाबद्दल सांगा',
+    voiceInputSubtitle: 'कोणत्याही भाषेत बोला — मराठी, हिंदी किंवा इंग्रजी',
+    voiceListening: 'ऐकत आहे...',
+    voiceStop: 'रेकॉर्डिंग थांबवा',
+    voiceTranscriptLabel: 'तुम्ही म्हणालात:',
+    voiceUseThis: 'हे वापरा',
+    voiceRecordAgain: 'पुन्हा रेकॉर्ड करा',
+    voiceCancel: 'रद्द करा',
+    voicePermissionDenied: 'मायक्रोफोन परवानगी नाकारली गेली. कृपया ब्राउझर सेटिंग्जमध्ये परवानगी द्या.',
+    voiceNotSupported: 'हा ब्राउझर स्पीच रेकग्निशन समर्थन करत नाही. कृपया खाली टाइप करा.',
+    voiceEmptyTranscript: 'कोणतेही भाषण आढळले नाही. स्पष्टपणे बोलून पुन्हा प्रयत्न करा.',
+    voiceError: 'व्हॉइस रेकॉर्डिंगमध्ये त्रुटी आली. कृपया पुन्हा प्रयत्न करा.',
+    voiceFallbackLabel: 'तुमच्या कर्जाचा तपशील टाइप करा',
+    voiceFallbackPlaceholder: 'उदा: माझ्या काकांना पाच हजार द्यायचे आहेत आणि सावकाराला दहा हजार, पाच टक्के महिना लागतो.',
+    voiceStartLabel: 'बोलणे सुरू करा',
+    voiceOrType: 'किंवा टाइप करा',
+
+    // Debt Card
+    owed: 'देय रक्कम',
+    dueDate: 'देय तारीख:',
+    notSet: 'निश्चित नाही',
+    edit: 'संपादन',
+    delete: 'हटवा',
+    noInterest: 'काहीही व्याज नाही',
+    perWeek: '{rate}% दर आठवड्याला',
+    perMonth: '{rate}% दरमहा',
+    perYear: '{rate}% दरवर्षी',
+    oneTimeFee: '{rate}% एकवेळ शुल्क',
+
+    // Add/Edit Modal
+    addTitle: 'अनौपचारिक कर्ज जोडा',
+    editTitle: 'कर्ज तपशील बदला',
+    addSub: 'कर्जाचा तपशील तंतोतंत नोंदवा',
+    editSub: 'धनको किंवा अटी अद्यतनित करा',
+    whoDoYouOwe: 'तुम्ही कोणाचे देणे लागता?',
+    lenderPlaceholder: 'उदा. काका, किराना दुकान, सावकार, क्रेडिटबी',
+    amountOwed: 'कर्ज रक्कम (₹)',
+    amountPlaceholder: 'उदा. 5000',
+    interestUnit: 'व्याज कालावधी',
+    interestRate: 'व्याज दर (%)',
+    ratePlaceholder: 'उदा. 5',
+    repaymentNotes: 'परतफेड टीप',
+    notesPlaceholder: 'उदा. दरमहा व्याज द्या; पीक आल्यावर मुद्दल परत करा.',
+    dueDateLabel: 'देय तारीख',
+    cancel: 'रद्द करा',
+    saveDebt: 'कर्ज जतन करा',
+    updateDebt: 'कर्ज अद्यतन करा',
+
+    // Interest Unit Options
+    unitNone: 'काहीही व्याज नाही',
+    unitWeek: 'दर आठवड्याला',
+    unitMonth: 'दरमहा',
+    unitYear: 'दरवर्षी',
+    unitOneTime: 'एकवेळ शुल्क (One-time)',
+
+    // Validation Errors
+    errLender: 'कृपया तुम्ही कोणाचे पैसे देणे लागता ते प्रविष्ट करा.',
+    errAmount: 'कृपया 0 पेक्षा जास्त वैध रक्कम प्रविष्ट करा.',
+    errRate: 'कृपया व्याज दर टक्केवारी नमूद करा.',
+
+    // Empty State
+    emptyTitle: 'अजून कोणतेही कर्ज जोडलेले नाही',
+    emptySubtext: 'दुकानदार, नातेवाईक, सावकार, भिशी किंवा ॲप्सकडून घेतलेल्या कर्जाचा मागोवा ठेवण्यासाठी तुमचे पहिले कर्ज जोडून सुरुवात करा.',
+    addFirstDebt: 'तुमचे पहिले कर्ज जोडा',
+  },
+};
