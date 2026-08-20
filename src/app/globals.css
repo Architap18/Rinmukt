@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #faf8f5;
+    --foreground: #1c1917;
+    --card: #ffffff;
+    --card-foreground: #1c1917;
+    --primary: #7c2d12; /* Warm Terracotta / Clay */
+    --primary-foreground: #fff7ed;
+    --accent: #d97706; /* Warm Amber */
+    --accent-foreground: #ffffff;
+    --muted: #f3efe6;
+    --muted-foreground: #78716c;
+    --border: #e7e5e4;
+
+    /* Semantic Non-Alarming Urgency Colors */
+    --urgency-high-bg: #ffedd5;
+    --urgency-high-text: #9a3412;
+    --urgency-high-border: #fed7aa;
+
+    --urgency-medium-bg: #fef3c7;
+    --urgency-medium-text: #92400e;
+    --urgency-medium-border: #fde68a;
+
+    --urgency-low-bg: #ecfdf5;
+    --urgency-low-text: #065f46;
+    --urgency-low-border: #a7f3d0;
+
+    --social-high: #9333ea; /* Deep Purple for Family / Personal relationship weight */
+    --social-medium: #0284c7; /* Sky Blue for Shopkeeper */
+    --social-low: #64748b; /* Slate for Commercial */
+  }
+
+  .dark {
+    --background: #141210;
+    --foreground: #f5f5f4;
+    --card: #1c1917;
+    --card-foreground: #f5f5f4;
+    --primary: #fb923c; /* Bright Warm Orange Accent */
+    --primary-foreground: #1c1917;
+    --accent: #f59e0b;
+    --accent-foreground: #1c1917;
+    --muted: #292524;
+    --muted-foreground: #a8a29e;
+    --border: #383532;
+
+    --urgency-high-bg: #431407;
+    --urgency-high-text: #ffedd5;
+    --urgency-high-border: #7c2d12;
+
+    --urgency-medium-bg: #451a03;
+    --urgency-medium-text: #fef3c7;
+    --urgency-medium-border: #78350f;
+
+    --urgency-low-bg: #022c22;
+    --urgency-low-text: #ecfdf5;
+    --urgency-low-border: #064e3b;
+
+    --social-high: #c084fc;
+    --social-medium: #38bdf8;
+    --social-low: #94a3b8;
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-plus-jakarta), system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.font-display {
+  font-family: var(--font-fraunces), serif;
+}
