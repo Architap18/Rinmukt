@@ -10,12 +10,10 @@ import { ClearDebtsButton } from '@/components/TrustNotice';
 import {
   Sun,
   Moon,
-  PlusCircle,
   LayoutDashboard,
   Table,
   Calendar,
   LogOut,
-  Sparkles,
   Menu,
   X,
   Globe,
@@ -28,7 +26,6 @@ export function Navbar() {
   const { language, setLanguage, t } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
-  const [loadingDemo, setLoadingDemo] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -45,27 +42,9 @@ export function Navbar() {
     router.push('/login');
   };
 
-  const handleQuickDemo = async () => {
-    setLoadingDemo(true);
-    try {
-      const res = await fetch('/api/demo', { method: 'POST' });
-      if (res.ok) {
-        if (pathname === '/dashboard') {
-          window.location.reload();
-        } else {
-          router.push('/dashboard');
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingDemo(false);
-    }
-  };
-
   const navLinks = [
-    { href: '/dashboard', label: t('navOverview') || 'Overview', icon: LayoutDashboard },
-    { href: '/debts', label: t('navComparison') || 'Comparison Table', icon: Table },
+    { href: '/dashboard', label: t('navOverview') || 'Home', icon: LayoutDashboard },
+    { href: '/debts', label: t('navComparison') || 'My Debts', icon: Table },
     { href: '/plan', label: t('navPlan') || 'Payoff Plan', icon: Calendar },
   ];
 
@@ -85,7 +64,7 @@ export function Navbar() {
               Rin<span className="text-amber-600">mukht</span>
             </span>
             <span className="block text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground font-bold">
-              Informal Debt Normalizer
+              {t('appSubtitle') || 'Debt Freedom Tool'}
             </span>
           </div>
         </Link>
@@ -112,7 +91,7 @@ export function Navbar() {
           })}
         </nav>
 
-        {/* Actions & Profile */}
+        {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-2.5">
           {/* Multilingual Selector */}
           <div className="flex items-center gap-1.5 bg-muted/60 px-2.5 py-1.5 rounded-xl border border-border">
@@ -131,27 +110,7 @@ export function Navbar() {
             </select>
           </div>
 
-          {/* Quick Demo Button */}
-          <button
-            onClick={handleQuickDemo}
-            disabled={loadingDemo}
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-950/40 px-3 sm:px-3.5 py-2 text-xs sm:text-sm font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 shadow-xs transition-all min-h-[40px] sm:min-h-[44px]"
-            title="Load realistic sample debts for demo"
-          >
-            <Sparkles className="w-4 h-4 text-amber-600" />
-            <span>{loadingDemo ? 'Loading...' : (t('navTryDemo') || 'Try Demo')}</span>
-          </button>
-
-          {/* Add Debt CTA */}
-          <Link
-            href="/debts/new"
-            className="flex items-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-sm transition-all min-h-[40px] sm:min-h-[44px]"
-          >
-            <PlusCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="hidden sm:inline">{t('navAddDebt') || 'Add Debt'}</span>
-          </Link>
-
-          {/* Clear Debts Action */}
+          {/* Clear Debts */}
           <ClearDebtsButton className="hidden md:inline-flex" />
 
           {/* Light / Dark Mode Toggle */}
@@ -179,7 +138,7 @@ export function Navbar() {
 
       {/* Mobile dropdown menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-border bg-card px-4 py-3 space-y-2 animate-in slide-in-from-top-2">
+        <div className="md:hidden border-t border-border bg-card px-4 py-3 space-y-1 animate-in slide-in-from-top-2">
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
@@ -188,7 +147,7 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-bold transition-all min-h-[48px] ${
+                className={`flex items-center gap-3 rounded-xl px-4 py-3.5 text-base font-bold transition-all min-h-[52px] ${
                   isActive
                     ? 'bg-amber-600/10 text-amber-600 dark:text-amber-400 border border-amber-600/20'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -199,9 +158,12 @@ export function Navbar() {
               </Link>
             );
           })}
+          <div className="pt-2">
+            <ClearDebtsButton className="w-full justify-center" />
+          </div>
           {user && (
-            <div className="pt-2 border-t border-border flex items-center justify-between px-2">
-              <span className="text-sm font-bold text-foreground">{user.name}</span>
+            <div className="pt-2 border-t border-border flex items-center justify-between px-2 mt-2">
+              <span className="text-sm font-bold text-foreground truncate max-w-[120px]">{user.name}</span>
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
@@ -210,7 +172,7 @@ export function Navbar() {
                 className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-red-700 py-2 px-3 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30"
               >
                 <LogOut className="w-4 h-4" />
-                Log out
+                {t('logOut') || 'Log out'}
               </button>
             </div>
           )}

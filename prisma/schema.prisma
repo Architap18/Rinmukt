@@ -1,4 +1,7 @@
 // Prisma Schema for Karza Untangler
+// Production database: PostgreSQL (Neon / Supabase / Railway)
+// DATABASE_URL must be set as an environment variable — never hardcoded.
+// Format: postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
 
 generator client {
   provider = "prisma-client-js"
