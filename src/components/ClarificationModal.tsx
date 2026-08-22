@@ -20,8 +20,8 @@ export function ClarificationModal({
   onCancel,
 }: ClarificationModalProps) {
   const [selectedInterestType, setSelectedInterestType] = useState<'flat_monthly' | 'compound_monthly' | 'one_time_flat' | 'none'>('flat_monthly');
-  const [rateInput, setRateInput] = useState<string>(extracted.interestRate > 0 ? extracted.interestRate.toString() : '5');
-  const [horizonInput, setHorizonInput] = useState<string>('12');
+  const [rateInput, setRateInput] = useState<string>(extracted.interestRate !== null && extracted.interestRate !== undefined && extracted.interestRate > 0 ? extracted.interestRate.toString() : '5');
+  const [horizonInput, setHorizonInput] = useState<string>(extracted.durationMonths ? String(extracted.durationMonths) : '12');
 
   if (!isOpen) return null;
 

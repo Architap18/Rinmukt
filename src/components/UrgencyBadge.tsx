@@ -1,88 +1,125 @@
 'use client';
 
 import React from 'react';
-import { AlertCircle, AlertTriangle, ShieldCheck, Heart, Store, Landmark, Smartphone, Users, HelpCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ShieldCheck, Heart, Store, Landmark, Smartphone, Users } from 'lucide-react';
 
-interface UrgencyBadgeProps {
-  urgencyTier: 'high' | 'medium' | 'low';
+interface FinancialUrgencyBadgeProps {
+  urgencyTier: 'high' | 'medium' | 'low' | string;
   eac?: number;
+  monthlyBleed?: number;
 }
 
-export function UrgencyBadge({ urgencyTier, eac }: UrgencyBadgeProps) {
+export function FinancialUrgencyBadge({ urgencyTier, eac, monthlyBleed }: FinancialUrgencyBadgeProps) {
   switch (urgencyTier) {
     case 'high':
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-urgency-high-bg text-urgency-high-text border border-urgency-high-border">
-          <AlertCircle className="w-3.5 h-3.5" />
-          High Urgency {eac !== undefined && `(${eac}% EAC)`}
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-600/10 text-amber-700 dark:text-amber-300 border border-amber-600/25 shadow-xs">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+          <span>High Cost Priority {eac !== undefined && `(${eac}% EAC)`}</span>
         </span>
       );
     case 'medium':
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-urgency-medium-bg text-urgency-medium-text border border-urgency-medium-border">
-          <AlertTriangle className="w-3.5 h-3.5" />
-          Moderate Urgency {eac !== undefined && `(${eac}% EAC)`}
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/25 shadow-xs">
+          <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+          <span>Medium Cost {eac !== undefined && `(${eac}% EAC)`}</span>
         </span>
       );
     case 'low':
+    default:
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-urgency-low-bg text-urgency-low-text border border-urgency-low-border">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          Low Urgency {eac !== undefined && `(${eac}% EAC)`}
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/25 shadow-xs">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Low / 0% Interest {eac !== undefined && `(${eac}% EAC)`}</span>
         </span>
       );
-    default:
-      return null;
   }
 }
 
-interface SocialWeightBadgeProps {
-  socialWeight: 'high' | 'medium' | 'low' | string;
+// Backward-compatible alias
+export const UrgencyBadge = FinancialUrgencyBadge;
+
+interface RelationalUrgencyBadgeProps {
+  socialWeight?: 'high' | 'medium' | 'low' | string;
+  relationalUrgency?: 'high' | 'medium' | 'low' | string;
   lenderType?: string;
 }
 
-export function SocialWeightBadge({ socialWeight, lenderType }: SocialWeightBadgeProps) {
-  const isHigh = socialWeight === 'high' || lenderType === 'relative';
-  const isMed = socialWeight === 'medium' || lenderType === 'shopkeeper' || lenderType === 'chit_fund';
+export function RelationalUrgencyBadge({ socialWeight, relationalUrgency, lenderType }: RelationalUrgencyBadgeProps) {
+  const urgency = relationalUrgency || (socialWeight === 'high' || lenderType === 'relative' ? 'high' : socialWeight === 'medium' || lenderType === 'shopkeeper' || lenderType === 'chit_fund' ? 'medium' : 'low');
 
-  let icon = <Users className="w-3.5 h-3.5" />;
-  let label = 'Low Social Weight';
-  let badgeStyle = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+  if (urgency === 'high') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-500/10 text-purple-800 dark:text-purple-300 border border-purple-500/25 shadow-xs">
+        <Heart className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+        <span>Family Goodwill Priority</span>
+      </span>
+    );
+  }
 
-  if (isHigh) {
-    icon = <Heart className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />;
-    label = 'High Personal / Relationship Weight';
-    badgeStyle = 'bg-purple-50 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300 border-purple-200 dark:border-purple-900';
-  } else if (isMed) {
-    icon = <Store className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />;
-    label = 'Medium Goodwill Weight';
-    badgeStyle = 'bg-sky-50 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300 border-sky-200 dark:border-sky-900';
-  } else {
-    if (lenderType === 'moneylender') icon = <Landmark className="w-3.5 h-3.5 text-slate-600" />;
-    if (lenderType === 'bnpl') icon = <Smartphone className="w-3.5 h-3.5 text-slate-600" />;
+  if (urgency === 'medium') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-500/10 text-sky-800 dark:text-sky-300 border border-sky-500/25 shadow-xs">
+        <Store className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+        <span>Kirana / Store Credit</span>
+      </span>
+    );
   }
 
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${badgeStyle}`}>
-      {icon}
-      {label}
+    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-muted text-muted-foreground border border-border">
+      {lenderType === 'moneylender' ? (
+        <Landmark className="w-3.5 h-3.5" />
+      ) : lenderType === 'bnpl' ? (
+        <Smartphone className="w-3.5 h-3.5" />
+      ) : (
+        <Users className="w-3.5 h-3.5" />
+      )}
+      <span>Commercial / App Loan</span>
     </span>
   );
 }
 
+// Backward-compatible alias
+export const SocialWeightBadge = RelationalUrgencyBadge;
+
 export function LenderTypeBadge({ lenderType }: { lenderType: string }) {
   switch (lenderType) {
     case 'relative':
-      return <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Relative / Family</span>;
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+          Relative / Family
+        </span>
+      );
     case 'shopkeeper':
-      return <span className="text-xs font-medium text-sky-700 dark:text-sky-300">Shopkeeper Credit</span>;
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+          Shopkeeper Credit
+        </span>
+      );
     case 'moneylender':
-      return <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Moneylender</span>;
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+          Moneylender
+        </span>
+      );
     case 'bnpl':
-      return <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">BNPL App</span>;
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+          BNPL App
+        </span>
+      );
     case 'chit_fund':
-      return <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Chit Fund</span>;
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+          Chit Fund
+        </span>
+      );
     default:
-      return <span className="text-xs font-medium text-muted-foreground">Other Informal</span>;
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-muted text-muted-foreground border border-border">
+          Other Informal
+        </span>
+      );
   }
 }

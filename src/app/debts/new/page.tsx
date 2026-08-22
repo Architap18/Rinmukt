@@ -2,15 +2,19 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, MessageSquare, CheckCircle2, ArrowRight, ShieldAlert, RefreshCw, HelpCircle } from 'lucide-react';
+import { Sparkles, MessageSquare, CheckCircle2, ArrowRight, ShieldAlert, RefreshCw, HelpCircle, Mic, Keyboard } from 'lucide-react';
 import { ExtractedDebt } from '@/lib/llmExtraction';
 import { ClarificationModal } from '@/components/ClarificationModal';
+import { VoiceInput } from '@/components/VoiceInput';
 import { UrgencyBadge, SocialWeightBadge, LenderTypeBadge } from '@/components/UrgencyBadge';
+import { useLanguage } from '@/context/LanguageContext';
 import { calculateEffectiveAnnualCost, calculateMonthlyBleed, calculateUrgencyTier } from '@/lib/debtMath';
 
 export default function NewDebtPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [inputText, setInputText] = useState('');
+  const [showVoice, setShowVoice] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
 
@@ -91,7 +95,7 @@ export default function NewDebtPage() {
     ? calculateEffectiveAnnualCost(
         extracted.principalAmount,
         extracted.interestType,
-        extracted.interestRate,
+        extracted.interestRate || 0,
         extracted.durationMonths
       )
     : 0;
@@ -100,7 +104,7 @@ export default function NewDebtPage() {
     ? calculateMonthlyBleed(
         extracted.principalAmount,
         extracted.interestType,
-        extracted.interestRate,
+        extracted.interestRate || 0,
         extracted.durationMonths
       )
     : 0;
@@ -108,77 +112,109 @@ export default function NewDebtPage() {
   const previewUrgency = calculateUrgencyTier(previewEac);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-300">
+    <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-300 pb-12">
       <div>
-        <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground">
-          Add Informal Debt
+        <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+          {t('addTitle') || 'Add Informal Debt'}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Describe the loan in your own words (Hindi, English, or Hinglish). The AI extracts language, and our deterministic math engine calculates the true Effective Annual Cost (EAC).
+        <p className="mt-1.5 text-base text-muted-foreground font-medium">
+          {t('voiceInputSubtitle') || 'Describe the loan in your own words (Hindi, English, or Hinglish). The AI extracts language, and our deterministic math engine calculates the true Effective Annual Cost (EAC).'}
         </p>
       </div>
 
-      {/* Free-text Intake Form */}
-      <div className="rounded-2xl bg-card p-6 shadow-sm border border-border space-y-4">
-        <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Describe Lender & Repayment Terms
-        </label>
-
-        <div className="relative">
-          <textarea
-            rows={3}
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="e.g. Moneylender se 10000 liya 5% per month, har mahine byaj dena hai..."
-            className="w-full rounded-xl border border-border bg-background p-4 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-
-        {/* Sample Hinglish Chips */}
-        <div>
-          <div className="text-xs font-semibold text-muted-foreground mb-2">Try an example:</div>
-          <div className="flex flex-wrap gap-2">
-            {sampleInputs.map((sample, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => {
-                  setInputText(sample);
-                  handleExtract(sample);
-                }}
-                className="rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors text-left"
-              >
-                "{sample}"
-              </button>
-            ))}
+      {/* Voice Intake or Free-text Intake Form */}
+      {showVoice ? (
+        <VoiceInput
+          onTranscriptAccepted={(transcript) => {
+            setInputText(transcript);
+            setShowVoice(false);
+            handleExtract(transcript);
+          }}
+          onCancel={() => setShowVoice(false)}
+        />
+      ) : (
+        <div className="rounded-3xl bg-card p-6 sm:p-7 shadow-sm border border-border space-y-5">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              {t('whoDoYouOwe') || 'Describe Lender & Repayment Terms'}
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowVoice(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold text-xs sm:text-sm hover:bg-amber-500/20 transition-colors"
+            >
+              <Mic className="w-4 h-4 text-amber-600 animate-pulse" />
+              <span>{t('voiceStartLabel') || 'Speak Debt Aloud'}</span>
+            </button>
           </div>
-        </div>
 
-        <button
-          type="button"
-          onClick={() => handleExtract()}
-          disabled={extracting || !inputText.trim()}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-md hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
-          {extracting ? (
-            <>
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              Parsing Language & Calculating EAC...
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              Analyze Debt with Deterministic Engine
-            </>
+          <div className="relative">
+            <textarea
+              rows={3}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder={t('voiceFallbackPlaceholder') || 'e.g. Moneylender se 10000 liya 5% per month, har mahine byaj dena hai...'}
+              className="w-full rounded-2xl border border-border bg-background p-4 text-sm sm:text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-[100px]"
+            />
+          </div>
+
+          {/* Sample Hinglish Chips */}
+          <div>
+            <div className="text-xs font-bold text-muted-foreground mb-2">Or tap a quick example:</div>
+            <div className="flex flex-wrap gap-2">
+              {sampleInputs.map((sample, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setInputText(sample);
+                    handleExtract(sample);
+                  }}
+                  className="rounded-xl bg-muted px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-300 transition-colors text-left"
+                >
+                  "{sample}"
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowVoice(true)}
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 py-3 px-4 text-sm sm:text-base font-bold text-amber-800 dark:text-amber-200 hover:bg-amber-100 transition-colors min-h-[48px]"
+            >
+              <Mic className="w-5 h-5 text-amber-600" />
+              <span>Speak via Voice</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleExtract()}
+              disabled={extracting || !inputText.trim()}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 py-3 px-4 text-sm sm:text-base font-bold text-white shadow-md transition-opacity disabled:opacity-50 min-h-[48px]"
+            >
+              {extracting ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <span>Calculating EAC...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Analyze & Calculate EAC</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {extractError && (
+            <div className="rounded-xl bg-destructive/10 p-3.5 text-xs sm:text-sm font-bold text-destructive border border-destructive/20">
+              {extractError}
+            </div>
           )}
-        </button>
-
-        {extractError && (
-          <div className="rounded-xl bg-destructive/10 p-3 text-xs font-semibold text-destructive border border-destructive/20">
-            {extractError}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Extracted Card & Deterministic Normalization Preview */}
       {extracted && (
@@ -237,16 +273,34 @@ export default function NewDebtPage() {
             </div>
           </div>
 
-          {/* Signal Separation: Urgency vs Social Weight */}
+          {/* Signal Separation: Financial Urgency vs Relational Urgency */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div className="space-y-1">
-              <div className="text-xs font-semibold text-muted-foreground">Financial Urgency Signal</div>
+              <div className="text-xs font-semibold text-muted-foreground">Financial Urgency Signal (EAC & Bleed)</div>
               <UrgencyBadge urgencyTier={previewUrgency} eac={previewEac} />
             </div>
 
             <div className="space-y-1">
-              <div className="text-xs font-semibold text-muted-foreground">Relationship / Social Weight Signal</div>
+              <div className="text-xs font-semibold text-muted-foreground">Relational Urgency Signal (Social Weight)</div>
               <SocialWeightBadge socialWeight={extracted.socialWeight} lenderType={extracted.lenderType} />
+            </div>
+          </div>
+
+          {/* Start Date & Repayment Terms Info */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="rounded-xl bg-background p-3 border border-border">
+              <span className="text-muted-foreground font-semibold">Estimated Start Date:</span>{' '}
+              <strong className="text-foreground">
+                {new Date(extracted.startDate).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </strong>
+            </div>
+            <div className="rounded-xl bg-background p-3 border border-border">
+              <span className="text-muted-foreground font-semibold">Repayment Terms:</span>{' '}
+              <strong className="text-foreground">{extracted.repaymentExpectation}</strong>
             </div>
           </div>
 

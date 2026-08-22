@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { calculateEffectiveAnnualCost, calculateMonthlyBleed, calculateUrgencyTier } from '@/lib/debtMath';
+import {
+  calculateEffectiveAnnualCost,
+  calculateMonthlyBleed,
+  calculateUrgencyTier,
+  calculateFinancialUrgency,
+  calculateRelationalUrgency,
+} from '@/lib/debtMath';
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const session = await getCurrentUser();
@@ -48,9 +54,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const interestRate = body.interestRate !== undefined ? parseFloat(body.interestRate) : existing.interestRate;
     const durationMonths = body.durationMonths !== undefined ? parseInt(body.durationMonths, 10) : existing.durationMonths;
 
+    const resolvedSocialWeight = body.socialWeight || existing.socialWeight;
     const eac = calculateEffectiveAnnualCost(remaining, interestType, interestRate, durationMonths);
     const bleed = calculateMonthlyBleed(remaining, interestType, interestRate, durationMonths);
-    const urgencyTier = calculateUrgencyTier(eac);
+    const financialUrgency = calculateFinancialUrgency(eac, bleed);
+    const relationalUrgency = calculateRelationalUrgency(resolvedSocialWeight, body.repaymentExpectation || existing.repaymentExpectation, existing.startDate || undefined);
     const status = remaining <= 0 ? 'paid_off' : body.status || existing.status;
 
     const updated = await prisma.debt.update({
@@ -64,10 +72,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         interestRate,
         durationMonths,
         repaymentExpectation: body.repaymentExpectation || existing.repaymentExpectation,
-        socialWeight: body.socialWeight || existing.socialWeight,
+        socialWeight: resolvedSocialWeight,
         effectiveAnnualCost: eac,
         monthlyBleed: bleed,
-        urgencyTier,
+        urgencyTier: financialUrgency,
+        financialUrgency,
+        relationalUrgency,
         status,
       },
       include: {

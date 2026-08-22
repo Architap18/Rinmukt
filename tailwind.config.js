@@ -54,8 +54,12 @@ module.exports = {
         }
       },
       fontFamily: {
-        sans: ['var(--font-plus-jakarta)', 'sans-serif'],
-        display: ['var(--font-fraunces)', 'serif'],
+        sans: ['"Plus Jakarta Sans"', '"Outfit"', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['"Outfit"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
+      },
+      screens: {
+        xs: '480px',
       },
     },
   },

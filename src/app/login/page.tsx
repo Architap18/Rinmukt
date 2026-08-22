@@ -7,7 +7,7 @@ import { LogIn, KeyRound, Mail, Sparkles } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('demo@karza.in');
+  const [email, setEmail] = useState('demo@rinmukht.in');
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,60 +48,60 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="mt-4 font-display text-3xl font-extrabold tracking-tight text-foreground">
-            Welcome to Karza Untangler
+            Welcome to Rinmukht
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Compare informal debts on equal footing with Effective Annual Cost.
+          <p className="mt-2 text-sm sm:text-base text-muted-foreground font-medium">
+            Compare informal debts on equal footing with Effective Annual Cost (True Yearly Cost).
           </p>
         </div>
 
         {/* Demo Credentials Callout */}
-        <div className="rounded-2xl bg-amber-500/10 p-4 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300">
+        <div className="rounded-2xl bg-amber-500/10 p-4 border border-amber-500/20 text-xs sm:text-sm text-amber-800 dark:text-amber-300">
           <div className="flex items-center gap-1.5 font-bold mb-1">
             <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
             Instant Demo Ready
           </div>
           <p>
-            Log in with demo credentials: <strong className="font-mono">demo@karza.in</strong> / <strong className="font-mono">password123</strong> (pre-seeded with 5 varied informal debts).
+            Log in with demo credentials: <strong className="font-mono font-bold">demo@rinmukht.in</strong> / <strong className="font-mono font-bold">password123</strong> (pre-seeded with varied informal debts).
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="rounded-2xl bg-card p-6 shadow-sm border border-border space-y-4">
           {error && (
-            <div className="rounded-xl bg-destructive/10 p-3 text-xs font-semibold text-destructive border border-destructive/20">
+            <div className="rounded-xl bg-destructive/10 p-3 text-xs sm:text-sm font-bold text-destructive border border-destructive/20">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+            <label className="block text-xs sm:text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">
               Email Address
             </label>
             <div className="relative">
-              <Mail className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+              <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="you@example.com"
+                className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-3 text-sm sm:text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-[44px]"
+                placeholder="demo@rinmukht.in"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+            <label className="block text-xs sm:text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">
               Password
             </label>
             <div className="relative">
-              <KeyRound className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+              <KeyRound className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-3 text-sm sm:text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-[44px]"
                 placeholder="••••••••"
               />
             </div>
@@ -110,21 +110,21 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-md hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 py-3.5 text-base font-bold text-white shadow-md transition-all min-h-[48px] disabled:opacity-50"
           >
             {loading ? (
-              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
             ) : (
               <>
-                <LogIn className="w-4 h-4" />
-                Sign In to Karza Untangler
+                <LogIn className="w-5 h-5" />
+                Sign In to Rinmukht
               </>
             )}
           </button>
 
-          <p className="text-center text-xs text-muted-foreground pt-2">
+          <p className="text-center text-xs sm:text-sm text-muted-foreground pt-2">
             Don't have an account?{' '}
-            <Link href="/signup" className="font-semibold text-primary underline underline-offset-2">
+            <Link href="/signup" className="font-bold text-amber-600 hover:underline">
               Create an account
             </Link>
           </p>

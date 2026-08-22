@@ -1,5 +1,5 @@
 /**
- * Karza Untangler - Deterministic Financial Math Engine
+ * Rinmukht - Deterministic Financial Math Engine
  *
  * Core Architectural Rule:
  * This module MUST be 100% deterministic, pure, and independent of any LLM or network API.
@@ -13,8 +13,10 @@ export interface RawDebtInput {
   lenderType: string; // relative | shopkeeper | moneylender | chit_fund | bnpl | other
   principalAmount: number;
   remainingBalance?: number;
+  interestDescription?: string | null;
   interestType: string; // none | flat_monthly | compound_monthly | one_time_flat | unspecified
   interestRate: number; // percentage
+  startDate?: string | Date | null;
   durationMonths?: number;
   repaymentExpectation?: string;
   socialWeight: string; // low | medium | high
@@ -24,7 +26,9 @@ export interface NormalizedDebt extends RawDebtInput {
   remainingBalance: number;
   effectiveAnnualCost: number; // EAC in %
   monthlyBleed: number; // Monthly rupee interest cost
-  urgencyTier: 'high' | 'medium' | 'low';
+  financialUrgency: 'high' | 'medium' | 'low';
+  relationalUrgency: 'high' | 'medium' | 'low';
+  urgencyTier: 'high' | 'medium' | 'low'; // Financial tier
   durationMonths: number;
 }
 
@@ -46,13 +50,23 @@ export interface MonthSchedule {
   remainingTotalDebt: number;
 }
 
+export interface PayoffOrderEntry {
+  debtId: string;
+  lenderName: string;
+  payoffMonth: number;
+  payoffDate: string;
+  initialBalance: number;
+}
+
 export interface PayoffScheduleResult {
-  strategy: 'fastest' | 'balanced';
+  strategy: 'avalanche' | 'snowball' | 'fastest' | 'balanced';
   monthlySurplus: number;
   totalMonths: number;
   totalInterestPaid: number;
   totalPrincipalPaid: number;
   projectedPayoffDates: Record<string, string>; // debtId -> "MMM YYYY"
+  payoffOrder: PayoffOrderEntry[];
+  debtFreeDate: string;
   schedule: MonthSchedule[];
 }
 
@@ -131,52 +145,119 @@ export function calculateMonthlyBleed(
 }
 
 /**
- * Determines Financial Urgency Tier based purely on EAC.
+ * Determines Financial Urgency Tier based on EAC and Monthly Bleed.
  */
-export function calculateUrgencyTier(eac: number): 'high' | 'medium' | 'low' {
-  if (eac >= 36) return 'high';
-  if (eac >= 12) return 'medium';
+export function calculateFinancialUrgency(eac: number, monthlyBleed: number = 0): 'high' | 'medium' | 'low' {
+  if (eac >= 36 || monthlyBleed >= 1000) return 'high';
+  if (eac >= 12 || monthlyBleed >= 300) return 'medium';
   return 'low';
 }
 
 /**
- * Normalizes raw debt input into a fully calculated NormalizedDebt object.
+ * Backward compatibility alias for calculateFinancialUrgency.
+ */
+export function calculateUrgencyTier(eac: number): 'high' | 'medium' | 'low' {
+  return calculateFinancialUrgency(eac);
+}
+
+/**
+ * Determines Relational Urgency Tier based on social weight and repayment expectation.
+ * Ensures a 0% family loan from a relative carries High Relational Urgency.
+ */
+export function calculateRelationalUrgency(
+  socialWeight: string,
+  repaymentExpectation: string = '',
+  startDate?: string | Date | null
+): 'high' | 'medium' | 'low' {
+  const lowerNotes = (repaymentExpectation || '').toLowerCase();
+  const isOverdue = /overdue|jaldi|urgent|asap|turant|nazar|dawa|hospital|lafda|emergency/i.test(lowerNotes);
+
+  if (socialWeight === 'high') {
+    return 'high';
+  }
+  if (socialWeight === 'medium') {
+    if (isOverdue) return 'high';
+    return 'medium';
+  }
+  // Low social weight (moneylender, bnpl)
+  if (isOverdue) return 'medium';
+  return 'low';
+}
+
+/**
+ * Normalizes raw debt input into a fully calculated NormalizedDebt object
+ * with two distinct axes: Financial Urgency and Relational Urgency.
  */
 export function normalizeDebt(input: RawDebtInput): NormalizedDebt {
   const horizon = input.durationMonths && input.durationMonths > 0 ? input.durationMonths : 12;
   const remaining = input.remainingBalance !== undefined ? input.remainingBalance : input.principalAmount;
   const eac = calculateEffectiveAnnualCost(remaining, input.interestType, input.interestRate, horizon);
   const monthlyBleed = calculateMonthlyBleed(remaining, input.interestType, input.interestRate, horizon);
-  const urgencyTier = calculateUrgencyTier(eac);
+  const financialUrgency = calculateFinancialUrgency(eac, monthlyBleed);
+  const relationalUrgency = calculateRelationalUrgency(input.socialWeight, input.repaymentExpectation, input.startDate);
 
   return {
     ...input,
     remainingBalance: remaining,
     effectiveAnnualCost: eac,
     monthlyBleed,
-    urgencyTier,
+    financialUrgency,
+    relationalUrgency,
+    urgencyTier: financialUrgency,
     durationMonths: horizon,
   };
 }
 
 /**
- * Ranks debts according to the selected strategy.
- *
- * Strategy "fastest": Pure Avalanche method (highest EAC first).
- * Strategy "balanced": Hybrid score taking into account EAC + Relationship/Social weight boost.
- *                      This ensures high-social-weight debts (e.g. relatives) are not neglected indefinitely.
+ * Pure Avalanche Strategy:
+ * Ranks debts strictly by Effective Annual Cost (EAC) descending.
+ * For debts with equal EAC (e.g. 0% interest debts), prioritizes by smaller balance.
+ * Non-zero interest debts are ALWAYS prioritized ahead of 0% interest debts.
+ */
+export function rankDebtsAvalanche(debts: RawDebtInput[]): NormalizedDebt[] {
+  const normalized = debts.map(normalizeDebt);
+  return [...normalized].sort((a, b) => {
+    if (b.effectiveAnnualCost !== a.effectiveAnnualCost) {
+      return b.effectiveAnnualCost - a.effectiveAnnualCost;
+    }
+    return a.remainingBalance - b.remainingBalance;
+  });
+}
+
+/**
+ * Pure Snowball Strategy:
+ * Ranks debts strictly by smallest remaining balance ascending.
+ * For debts with equal balance, prioritizes higher EAC.
+ */
+export function rankDebtsSnowball(debts: RawDebtInput[]): NormalizedDebt[] {
+  const normalized = debts.map(normalizeDebt);
+  return [...normalized].sort((a, b) => {
+    if (a.remainingBalance !== b.remainingBalance) {
+      return a.remainingBalance - b.remainingBalance;
+    }
+    return b.effectiveAnnualCost - a.effectiveAnnualCost;
+  });
+}
+
+/**
+ * Ranks debts according to the selected strategy:
+ * - "avalanche" / "fastest": Highest EAC first
+ * - "snowball": Smallest balance first
+ * - "balanced": Hybrid score taking into account EAC + Relationship/Social weight boost
  */
 export function rankDebts(
   debts: RawDebtInput[],
-  strategy: 'fastest' | 'balanced'
+  strategy: 'avalanche' | 'snowball' | 'fastest' | 'balanced'
 ): NormalizedDebt[] {
-  const normalized = debts.map(normalizeDebt);
-
-  if (strategy === 'fastest') {
-    return [...normalized].sort((a, b) => b.effectiveAnnualCost - a.effectiveAnnualCost);
+  if (strategy === 'snowball') {
+    return rankDebtsSnowball(debts);
+  }
+  if (strategy === 'avalanche' || strategy === 'fastest') {
+    return rankDebtsAvalanche(debts);
   }
 
   // Strategy: Balanced
+  const normalized = debts.map(normalizeDebt);
   const scored = normalized.map((debt) => {
     // Base financial urgency score (0 - 100)
     let score = Math.min(debt.effectiveAnnualCost, 100);
@@ -207,13 +288,13 @@ function getMonthName(monthOffset: number): string {
 /**
  * Deterministic Payoff Schedule Generator.
  *
- * Given debts, monthly surplus, and strategy ('fastest' | 'balanced'),
+ * Given debts, monthly surplus, and strategy ('avalanche' | 'snowball' | 'fastest' | 'balanced'),
  * simulates month-by-month repayment timeline until all debts reach zero.
  */
 export function generatePayoffSchedule(
   debts: RawDebtInput[],
   monthlySurplus: number,
-  strategy: 'fastest' | 'balanced' = 'fastest'
+  strategy: 'avalanche' | 'snowball' | 'fastest' | 'balanced' = 'avalanche'
 ): PayoffScheduleResult {
   const activeDebts = debts
     .map(normalizeDebt)
@@ -227,6 +308,8 @@ export function generatePayoffSchedule(
       totalInterestPaid: 0,
       totalPrincipalPaid: 0,
       projectedPayoffDates: {},
+      payoffOrder: [],
+      debtFreeDate: 'Now (Debt-Free)',
       schedule: [],
     };
   }
@@ -318,13 +401,24 @@ export function generatePayoffSchedule(
       }
     }
 
-    // Step 3: Priority sort remaining active debts for avalanche / surplus allocation
+    // Step 3: Priority sort remaining active debts for surplus allocation
     const prioritySorted = [...states]
       .filter((s) => s.remainingBalance > 0.01)
       .sort((a, b) => {
-        if (strategy === 'fastest') {
+        if (strategy === 'snowball') {
+          if (a.remainingBalance !== b.remainingBalance) {
+            return a.remainingBalance - b.remainingBalance;
+          }
           return b.effectiveAnnualCost - a.effectiveAnnualCost;
         }
+
+        if (strategy === 'avalanche' || strategy === 'fastest') {
+          if (b.effectiveAnnualCost !== a.effectiveAnnualCost) {
+            return b.effectiveAnnualCost - a.effectiveAnnualCost;
+          }
+          return a.remainingBalance - b.remainingBalance;
+        }
+
         // Balanced: rank by EAC plus social weight bonus
         const scoreA = a.effectiveAnnualCost + (a.socialWeight === 'high' ? 35 : a.socialWeight === 'medium' ? 15 : 0);
         const scoreB = b.effectiveAnnualCost + (b.socialWeight === 'high' ? 35 : b.socialWeight === 'medium' ? 15 : 0);
@@ -400,6 +494,23 @@ export function generatePayoffSchedule(
     }
   }
 
+  // Calculate payoff order sorted by the month they reach 0 balance
+  const payoffOrder: PayoffOrderEntry[] = [...states]
+    .sort((a, b) => {
+      const aMonth = a.payoffMonth ?? 9999;
+      const bMonth = b.payoffMonth ?? 9999;
+      return aMonth - bMonth;
+    })
+    .map((s) => ({
+      debtId: s.id,
+      lenderName: s.lenderName,
+      payoffMonth: s.payoffMonth ?? month,
+      payoffDate: s.payoffMonth !== null ? getMonthName(s.payoffMonth - 1) : '20+ Years',
+      initialBalance: activeDebts.find((d) => d.id === s.id)?.remainingBalance ?? 0,
+    }));
+
+  const debtFreeDate = month > 0 ? getMonthName(month - 1) : 'Debt-Free';
+
   return {
     strategy,
     monthlySurplus,
@@ -407,6 +518,8 @@ export function generatePayoffSchedule(
     totalInterestPaid: Math.round(totalInterestPaid),
     totalPrincipalPaid: Math.round(totalPrincipalPaid),
     projectedPayoffDates,
+    payoffOrder,
+    debtFreeDate,
     schedule,
   };
 }

@@ -1,19 +1,19 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Language, translations } from '@/lib/translations';
-
-type TranslationKeys = keyof typeof translations.en;
+import { Language, translations, languageNames } from '@/lib/translations';
 
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: TranslationKeys, params?: Record<string, string | number>) => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  languageNames: typeof languageNames;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-const LANG_STORAGE_KEY = 'rinmukt_lang_v1';
+const LANG_STORAGE_KEY = 'rinmukht_lang_v2';
+const VALID_LANGS: Language[] = ['en', 'hi', 'hinglish', 'mr', 'bn', 'pa', 'gu'];
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en');
@@ -22,7 +22,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const savedLang = localStorage.getItem(LANG_STORAGE_KEY) as Language;
-      if (savedLang && ['en', 'hi', 'mr'].includes(savedLang)) {
+      if (savedLang && VALID_LANGS.includes(savedLang)) {
         setLanguageState(savedLang);
       }
     } catch (e) {
@@ -41,7 +41,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const t = (key: TranslationKeys, params?: Record<string, string | number>): string => {
+  const t = (key: string, params?: Record<string, string | number>): string => {
     const langDict = translations[language] || translations.en;
     let template = langDict[key] || translations.en[key] || key;
 
@@ -55,7 +55,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, languageNames }}>
       {children}
     </LanguageContext.Provider>
   );

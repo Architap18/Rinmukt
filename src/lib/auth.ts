@@ -3,10 +3,10 @@ import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'karza-untangler-secret-jwt-key-2026'
+  process.env.JWT_SECRET || 'rinmukht-secret-jwt-key-2026'
 );
 
-const COOKIE_NAME = 'karza_token';
+const COOKIE_NAME = 'rinmukht_token';
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
@@ -35,7 +35,7 @@ export async function verifyToken(token: string) {
 
 export async function getCurrentUser() {
   const cookieStore = cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
+  const token = cookieStore.get(COOKIE_NAME)?.value || cookieStore.get('karza_token')?.value;
   if (!token) return null;
   return verifyToken(token);
 }
@@ -54,4 +54,5 @@ export function setAuthCookie(token: string) {
 export function removeAuthCookie() {
   const cookieStore = cookies();
   cookieStore.delete(COOKIE_NAME);
+  cookieStore.delete('karza_token');
 }

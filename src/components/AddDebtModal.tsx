@@ -14,6 +14,8 @@ interface AddDebtModalProps {
   prefillNotes?: string;
 }
 
+import { fallbackExtraction } from '@/lib/llmExtraction';
+
 export function AddDebtModal({ isOpen, onClose, onSave, editingDebt, prefillNotes }: AddDebtModalProps) {
   const { t } = useLanguage();
 
@@ -38,14 +40,27 @@ export function AddDebtModal({ isOpen, onClose, onSave, editingDebt, prefillNote
         repaymentNotes: editingDebt.repaymentNotes || '',
         dueDate: editingDebt.dueDate || '',
       });
+    } else if (prefillNotes && prefillNotes.trim().length > 0) {
+      const parsed = fallbackExtraction(prefillNotes);
+      let unit: InterestUnit = 'month';
+      if (parsed.interestType === 'none') unit = 'none';
+      else if (parsed.interestType === 'one_time_flat') unit = 'one-time';
+
+      setFormData({
+        lender: parsed.lenderName && parsed.lenderName !== 'Lender' ? parsed.lenderName : '',
+        amount: parsed.principalAmount > 0 ? String(parsed.principalAmount) : '',
+        interestRate: parsed.interestRate !== null && parsed.interestRate > 0 ? String(parsed.interestRate) : '',
+        interestUnit: unit,
+        repaymentNotes: prefillNotes,
+        dueDate: '',
+      });
     } else {
       setFormData({
         lender: '',
         amount: '',
         interestRate: '',
         interestUnit: 'month',
-        // Pre-fill repayment notes from voice transcript if provided
-        repaymentNotes: prefillNotes || '',
+        repaymentNotes: '',
         dueDate: '',
       });
     }

@@ -10,14 +10,16 @@ datasource db {
 }
 
 model User {
-  id             String        @id @default(uuid())
-  name           String
-  phone          String?
-  email          String        @unique
-  passwordHash   String
-  monthlySurplus Float         @default(3000.0)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id               String        @id @default(uuid())
+  name             String
+  phone            String?
+  email            String        @unique
+  passwordHash     String
+  monthlySurplus   Float         @default(3000.0)
+  monthlyIncome    Float?
+  selectedStrategy String        @default("avalanche")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   debts          Debt[]
   paymentPlans   PaymentPlan[]
@@ -32,6 +34,7 @@ model Debt {
   lenderType           String       // relative | shopkeeper | moneylender | chit_fund | bnpl | other
   principalAmount      Float
   remainingBalance     Float
+  interestDescription  String?
   interestType         String       // none | flat_monthly | compound_monthly | one_time_flat | unspecified
   interestRate         Float        // percentage per month/period or flat
   startDate            DateTime?
@@ -41,7 +44,9 @@ model Debt {
   
   effectiveAnnualCost  Float        // EAC (%) computed deterministically
   monthlyBleed         Float        // Monthly interest cost (₹)
-  urgencyTier          String       // low | medium | high
+  urgencyTier          String       // low | medium | high (financial urgency)
+  financialUrgency     String?      // low | medium | high
+  relationalUrgency    String?      // low | medium | high
 
   status               String       @default("active") // active | paid_off
   createdAt            DateTime     @default(now())
