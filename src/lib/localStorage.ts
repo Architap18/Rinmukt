@@ -1,9 +1,4 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Rinmukht LocalStorage Layer
-// All user authentication and debt data is stored in the browser's localStorage.
-// No database or server-side session is required.
-// Data is namespaced per user so multiple accounts on the same browser are isolated.
-// ─────────────────────────────────────────────────────────────────────────────
+'use client';
 
 import {
   calculateEffectiveAnnualCost,
@@ -12,13 +7,18 @@ import {
   calculateRelationalUrgency,
 } from '@/lib/debtMath';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Rinmukht LocalStorage Layer
+// Browser-only authentication and debt storage.
+// No database required.
+// Each user's debts are isolated by user ID.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type StoredUser = {
   id: string;
   name: string;
   email: string;
-  passwordHash: string; // simple client-side hash (not cryptographic, for demo only)
+  passwordHash: string;
   monthlySurplus: number;
   monthlyIncome: number | null;
   selectedStrategy: string;
@@ -36,323 +36,868 @@ export type PaymentLog = {
 export type StoredDebt = {
   id: string;
   userId: string;
+
   lenderName: string;
   lenderType: string;
+
   principalAmount: number;
   remainingBalance: number;
+
   interestDescription: string | null;
   interestType: string;
   interestRate: number;
+
   startDate: string;
   durationMonths: number;
+
   repaymentExpectation: string;
   socialWeight: string;
+
   effectiveAnnualCost: number;
   monthlyBleed: number;
-  urgencyTier: string;
-  financialUrgency: string;
-  relationalUrgency: string;
+
+  urgencyTier: 'high' | 'medium' | 'low';
+  financialUrgency: 'high' | 'medium' | 'low';
+  relationalUrgency: 'high' | 'medium' | 'low';
+
   status: string;
+
   createdAt: string;
   updatedAt: string;
+
   paymentLogs: PaymentLog[];
 };
 
-// ─── Storage Keys ─────────────────────────────────────────────────────────────
+// Data required when creating a debt.
+// Calculated fields are generated automatically.
+export type NewDebtData = Omit<
+  StoredDebt,
+  | 'id'
+  | 'userId'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'paymentLogs'
+  | 'effectiveAnnualCost'
+  | 'monthlyBleed'
+  | 'urgencyTier'
+  | 'financialUrgency'
+  | 'relationalUrgency'
+>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Storage keys
+// ─────────────────────────────────────────────────────────────────────────────
 
 const USERS_KEY = 'rinmukht_users';
 const SESSION_KEY = 'rinmukht_session';
 const DEBTS_PREFIX = 'rinmukht_debts_';
 const PROFILE_PREFIX = 'rinmukht_profile_';
 
-// ─── Safe localStorage Wrappers ───────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Safe localStorage access
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Always access localStorage through globalThis.
+ *
+ * This works in:
+ * - Browser
+ * - Next.js client components
+ * - Vitest
+ *
+ * It also safely returns null when storage is unavailable.
+ */
+function getStorage(): Storage | null {
+  try {
+    if (
+      typeof globalThis === 'undefined' ||
+      !globalThis.localStorage
+    ) {
+      return null;
+    }
+
+    return globalThis.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 function safeGet<T>(key: string): T | null {
-  if (typeof window === 'undefined') return null;
+  const storage = getStorage();
+
+  if (!storage) {
+    return null;
+  }
+
   try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
+    const raw = storage.getItem(key);
+
+    if (!raw) {
+      return null;
+    }
+
     return JSON.parse(raw) as T;
   } catch {
     return null;
   }
 }
 
-function safeSet(key: string, value: unknown): void {
-  if (typeof window === 'undefined') return;
+function safeSet(
+  key: string,
+  value: unknown
+): void {
+  const storage = getStorage();
+
+  if (!storage) {
+    return;
+  }
+
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    storage.setItem(
+      key,
+      JSON.stringify(value)
+    );
   } catch {
-    // localStorage might be full or unavailable
+    // Ignore storage failures.
   }
 }
 
 function safeRemove(key: string): void {
-  if (typeof window === 'undefined') return;
+  const storage = getStorage();
+
+  if (!storage) {
+    return;
+  }
+
   try {
-    localStorage.removeItem(key);
+    storage.removeItem(key);
   } catch {
-    // ignore
+    // Ignore storage failures.
   }
 }
 
-// ─── Simple Password Hashing ──────────────────────────────────────────────────
-// This is NOT cryptographically secure — it's for a demo/submission app only.
-// For a production app, use bcrypt server-side.
+// ─────────────────────────────────────────────────────────────────────────────
+// Password hashing
+// ─────────────────────────────────────────────────────────────────────────────
 
-function simpleHash(str: string): string {
+function simpleHash(value: string): string {
   let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32bit integer
+
+  for (
+    let i = 0;
+    i < value.length;
+    i += 1
+  ) {
+    const char = value.charCodeAt(i);
+
+    hash =
+      (hash << 5) -
+      hash +
+      char;
+
+    hash |= 0;
   }
-  // Add a fixed salt prefix so it's slightly harder to reverse
-  return 'h_' + Math.abs(hash).toString(36) + '_' + str.length.toString(36);
+
+  return (
+    'h_' +
+    Math.abs(hash).toString(36) +
+    '_' +
+    value.length.toString(36)
+  );
 }
 
-// ─── User Registry ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Users
+// ─────────────────────────────────────────────────────────────────────────────
 
-type UserRegistry = Record<string, StoredUser>; // email -> user
+type UserRegistry = Record<
+  string,
+  StoredUser
+>;
 
 function getUserRegistry(): UserRegistry {
-  return safeGet<UserRegistry>(USERS_KEY) || {};
+  return (
+    safeGet<UserRegistry>(
+      USERS_KEY
+    ) ?? {}
+  );
 }
 
-function saveUserRegistry(registry: UserRegistry): void {
-  safeSet(USERS_KEY, registry);
+function saveUserRegistry(
+  registry: UserRegistry
+): void {
+  safeSet(
+    USERS_KEY,
+    registry
+  );
 }
 
-export function getUserByEmail(email: string): StoredUser | null {
-  const registry = getUserRegistry();
-  return registry[email.trim().toLowerCase()] || null;
+export function getUserByEmail(
+  email: string
+): StoredUser | null {
+  const normalizedEmail =
+    email.trim().toLowerCase();
+
+  const registry =
+    getUserRegistry();
+
+  return (
+    registry[normalizedEmail] ??
+    null
+  );
 }
+
+export function getUserById(
+  userId: string
+): StoredUser | null {
+  const registry =
+    getUserRegistry();
+
+  return (
+    Object.values(
+      registry
+    ).find(
+      (user) =>
+        user.id === userId
+    ) ?? null
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Registration
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function registerUser(
   name: string,
   email: string,
   password: string
-): { success: true; user: StoredUser } | { success: false; error: string } {
-  const normalizedEmail = email.trim().toLowerCase();
-  const registry = getUserRegistry();
+):
+  | {
+      success: true;
+      user: StoredUser;
+    }
+  | {
+      success: false;
+      error: string;
+    } {
+  const cleanName =
+    name.trim();
 
-  if (registry[normalizedEmail]) {
-    return { success: false, error: 'An account with this email already exists.' };
+  const normalizedEmail =
+    email.trim().toLowerCase();
+
+  if (!cleanName) {
+    return {
+      success: false,
+      error:
+        'Please enter your name.',
+    };
+  }
+
+  if (!normalizedEmail) {
+    return {
+      success: false,
+      error:
+        'Please enter your email address.',
+    };
+  }
+
+  if (
+    !normalizedEmail.includes('@')
+  ) {
+    return {
+      success: false,
+      error:
+        'Please enter a valid email address.',
+    };
+  }
+
+  if (password.length < 6) {
+    return {
+      success: false,
+      error:
+        'Password must be at least 6 characters.',
+    };
+  }
+
+  const registry =
+    getUserRegistry();
+
+  if (
+    registry[normalizedEmail]
+  ) {
+    return {
+      success: false,
+      error:
+        'An account with this email already exists.',
+    };
   }
 
   const user: StoredUser = {
-    id: 'user-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-    name: name.trim(),
+    id:
+      'user-' +
+      Date.now() +
+      '-' +
+      Math.random()
+        .toString(36)
+        .slice(2, 8),
+
+    name: cleanName,
+
     email: normalizedEmail,
-    passwordHash: simpleHash(password),
+
+    passwordHash:
+      simpleHash(password),
+
     monthlySurplus: 3000,
+
     monthlyIncome: null,
-    selectedStrategy: 'avalanche',
-    createdAt: new Date().toISOString(),
+
+    selectedStrategy:
+      'avalanche',
+
+    createdAt:
+      new Date().toISOString(),
   };
 
-  registry[normalizedEmail] = user;
-  saveUserRegistry(registry);
-  return { success: true, user };
+  registry[normalizedEmail] =
+    user;
+
+  saveUserRegistry(
+    registry
+  );
+
+  return {
+    success: true,
+    user,
+  };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Authentication
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function authenticateUser(
   email: string,
   password: string
-): { success: true; user: StoredUser } | { success: false; error: string } {
-  const user = getUserByEmail(email);
+):
+  | {
+      success: true;
+      user: StoredUser;
+    }
+  | {
+      success: false;
+      error: string;
+    } {
+  const user =
+    getUserByEmail(email);
+
   if (!user) {
-    return { success: false, error: 'No account found with this email address.' };
+    return {
+      success: false,
+      error:
+        'No account found with this email address.',
+    };
   }
 
-  if (user.passwordHash !== simpleHash(password)) {
-    return { success: false, error: 'Incorrect password. Please try again.' };
+  if (
+    user.passwordHash !==
+    simpleHash(password)
+  ) {
+    return {
+      success: false,
+      error:
+        'Incorrect password. Please try again.',
+    };
   }
-
-  return { success: true, user };
-}
-
-// ─── Session Management ───────────────────────────────────────────────────────
-
-type Session = { userId: string; email: string; name: string };
-
-export function getSession(): Session | null {
-  return safeGet<Session>(SESSION_KEY);
-}
-
-export function setSession(user: StoredUser): void {
-  safeSet(SESSION_KEY, { userId: user.id, email: user.email, name: user.name });
-}
-
-export function clearSession(): void {
-  safeRemove(SESSION_KEY);
-}
-
-// ─── User Profile ─────────────────────────────────────────────────────────────
-
-export function getProfile(userId: string): Partial<StoredUser> {
-  return safeGet<Partial<StoredUser>>(PROFILE_PREFIX + userId) || {};
-}
-
-export function saveProfile(userId: string, updates: Partial<StoredUser>): StoredUser | null {
-  const registry = getUserRegistry();
-  const user = Object.values(registry).find((u) => u.id === userId);
-  if (!user) return null;
-
-  const merged = { ...user, ...updates };
-  registry[merged.email] = merged;
-  saveUserRegistry(registry);
-
-  // Also persist to per-user profile key for quick lookup
-  safeSet(PROFILE_PREFIX + userId, merged);
-  return merged;
-}
-
-export function getUserById(userId: string): StoredUser | null {
-  const registry = getUserRegistry();
-  return Object.values(registry).find((u) => u.id === userId) || null;
-}
-
-// ─── Debt Enrichment ──────────────────────────────────────────────────────────
-
-export function enrichDebt(
-  partial: Omit<StoredDebt, 'effectiveAnnualCost' | 'monthlyBleed' | 'urgencyTier' | 'financialUrgency' | 'relationalUrgency'> & {
-    effectiveAnnualCost?: number;
-    monthlyBleed?: number;
-    urgencyTier?: string;
-    financialUrgency?: string;
-    relationalUrgency?: string;
-  }
-): StoredDebt {
-  const eac = calculateEffectiveAnnualCost(
-    partial.remainingBalance,
-    partial.interestType,
-    partial.interestRate,
-    partial.durationMonths
-  );
-  const bleed = calculateMonthlyBleed(
-    partial.remainingBalance,
-    partial.interestType,
-    partial.interestRate,
-    partial.durationMonths
-  );
-  const financialUrgency = calculateFinancialUrgency(eac, bleed);
-  const relationalUrgency = calculateRelationalUrgency(
-    partial.socialWeight,
-    partial.repaymentExpectation,
-    partial.startDate
-  );
 
   return {
-    ...partial,
-    effectiveAnnualCost: eac,
-    monthlyBleed: bleed,
-    urgencyTier: financialUrgency,
-    financialUrgency,
-    relationalUrgency,
-    paymentLogs: partial.paymentLogs || [],
+    success: true,
+    user,
   };
 }
 
-// ─── Debt CRUD ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Session
+// ─────────────────────────────────────────────────────────────────────────────
 
-function debtsKey(userId: string): string {
-  return DEBTS_PREFIX + userId;
+export type Session = {
+  userId: string;
+  email: string;
+  name: string;
+};
+
+export function getSession():
+  | Session
+  | null {
+  return safeGet<Session>(
+    SESSION_KEY
+  );
 }
 
-export function getDebts(userId: string): StoredDebt[] {
-  return safeGet<StoredDebt[]>(debtsKey(userId)) || [];
+export function setSession(
+  user: StoredUser
+): void {
+  safeSet(
+    SESSION_KEY,
+    {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+    }
+  );
 }
 
-export function saveDebts(userId: string, debts: StoredDebt[]): void {
-  safeSet(debtsKey(userId), debts);
+export function clearSession(): void {
+  safeRemove(
+    SESSION_KEY
+  );
 }
 
-export function addDebt(userId: string, debtData: Omit<StoredDebt, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'paymentLogs'>): StoredDebt {
-  const now = new Date().toISOString();
-  const newDebt = enrichDebt({
-    ...debtData,
-    id: 'debt-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+// ─────────────────────────────────────────────────────────────────────────────
+// Profile
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function getProfile(
+  userId: string
+): Partial<StoredUser> {
+  return (
+    safeGet<
+      Partial<StoredUser>
+    >(
+      PROFILE_PREFIX + userId
+    ) ?? {}
+  );
+}
+
+export function saveProfile(
+  userId: string,
+  updates: Partial<StoredUser>
+): StoredUser | null {
+  const registry =
+    getUserRegistry();
+
+  const user =
+    Object.values(
+      registry
+    ).find(
+      (item) =>
+        item.id === userId
+    );
+
+  if (!user) {
+    return null;
+  }
+
+  const merged: StoredUser = {
+    ...user,
+    ...updates,
+
+    // Identity fields cannot be changed
+    // through profile updates.
+    id: user.id,
+    email: user.email,
+  };
+
+  registry[user.email] =
+    merged;
+
+  saveUserRegistry(
+    registry
+  );
+
+  safeSet(
+    PROFILE_PREFIX + userId,
+    merged
+  );
+
+  return merged;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Debt calculations
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function enrichDebt(
+  partial: Omit<
+    StoredDebt,
+    | 'effectiveAnnualCost'
+    | 'monthlyBleed'
+    | 'urgencyTier'
+    | 'financialUrgency'
+    | 'relationalUrgency'
+  > & {
+    effectiveAnnualCost?: number;
+    monthlyBleed?: number;
+    urgencyTier?:
+      | 'high'
+      | 'medium'
+      | 'low';
+    financialUrgency?:
+      | 'high'
+      | 'medium'
+      | 'low';
+    relationalUrgency?:
+      | 'high'
+      | 'medium'
+      | 'low';
+  }
+): StoredDebt {
+  const eac =
+    calculateEffectiveAnnualCost(
+      partial.remainingBalance,
+      partial.interestType,
+      partial.interestRate,
+      partial.durationMonths
+    );
+
+  const bleed =
+    calculateMonthlyBleed(
+      partial.remainingBalance,
+      partial.interestType,
+      partial.interestRate,
+      partial.durationMonths
+    );
+
+  const financialUrgency =
+    calculateFinancialUrgency(
+      eac,
+      bleed
+    );
+
+  const relationalUrgency =
+    calculateRelationalUrgency(
+      partial.socialWeight,
+      partial.repaymentExpectation,
+      partial.startDate
+    );
+
+  return {
+    ...partial,
+
+    effectiveAnnualCost:
+      Number.isFinite(eac)
+        ? eac
+        : 0,
+
+    monthlyBleed:
+      Number.isFinite(bleed)
+        ? bleed
+        : 0,
+
+    urgencyTier:
+      financialUrgency,
+
+    financialUrgency,
+
+    relationalUrgency,
+
+    paymentLogs:
+      partial.paymentLogs ?? [],
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Debt storage
+// ─────────────────────────────────────────────────────────────────────────────
+
+function debtsKey(
+  userId: string
+): string {
+  return (
+    DEBTS_PREFIX +
+    userId
+  );
+}
+
+export function getDebts(
+  userId: string
+): StoredDebt[] {
+  return (
+    safeGet<StoredDebt[]>(
+      debtsKey(userId)
+    ) ?? []
+  );
+}
+
+export function saveDebts(
+  userId: string,
+  debts: StoredDebt[]
+): void {
+  safeSet(
+    debtsKey(userId),
+    debts
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Add debt
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function addDebt(
+  userId: string,
+  debtData: NewDebtData
+): StoredDebt {
+  const now =
+    new Date().toISOString();
+
+  const newDebt =
+    enrichDebt({
+      ...debtData,
+
+      id:
+        'debt-' +
+        Date.now() +
+        '-' +
+        Math.random()
+          .toString(36)
+          .slice(2, 6),
+
+      userId,
+
+      createdAt: now,
+
+      updatedAt: now,
+
+      paymentLogs: [],
+    });
+
+  const debts =
+    getDebts(userId);
+
+  debts.unshift(
+    newDebt
+  );
+
+  saveDebts(
     userId,
-    createdAt: now,
-    updatedAt: now,
-    paymentLogs: [],
-  });
+    debts
+  );
 
-  const debts = getDebts(userId);
-  debts.unshift(newDebt);
-  saveDebts(userId, debts);
   return newDebt;
 }
 
-export function deleteDebt(userId: string, debtId: string): boolean {
-  const debts = getDebts(userId);
-  const index = debts.findIndex((d) => d.id === debtId);
-  if (index === -1) return false;
-  debts.splice(index, 1);
-  saveDebts(userId, debts);
+// ─────────────────────────────────────────────────────────────────────────────
+// Delete debt
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function deleteDebt(
+  userId: string,
+  debtId: string
+): boolean {
+  const debts =
+    getDebts(userId);
+
+  const index =
+    debts.findIndex(
+      (debt) =>
+        debt.id === debtId
+    );
+
+  if (index === -1) {
+    return false;
+  }
+
+  debts.splice(
+    index,
+    1
+  );
+
+  saveDebts(
+    userId,
+    debts
+  );
+
   return true;
 }
 
-export function updateDebt(userId: string, debtId: string, updates: Partial<StoredDebt>): StoredDebt | null {
-  const debts = getDebts(userId);
-  const index = debts.findIndex((d) => d.id === debtId);
-  if (index === -1) return null;
+// ─────────────────────────────────────────────────────────────────────────────
+// Update debt
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const existing = debts[index];
-  const merged = enrichDebt({
-    ...existing,
-    ...updates,
-    id: existing.id,
-    userId: existing.userId,
-    createdAt: existing.createdAt,
-    updatedAt: new Date().toISOString(),
-  });
+export function updateDebt(
+  userId: string,
+  debtId: string,
+  updates: Partial<StoredDebt>
+): StoredDebt | null {
+  const debts =
+    getDebts(userId);
 
-  debts[index] = merged;
-  saveDebts(userId, debts);
+  const index =
+    debts.findIndex(
+      (debt) =>
+        debt.id === debtId
+    );
+
+  if (index === -1) {
+    return null;
+  }
+
+  const existing =
+    debts[index];
+
+  const merged =
+    enrichDebt({
+      ...existing,
+      ...updates,
+
+      id: existing.id,
+
+      userId:
+        existing.userId,
+
+      createdAt:
+        existing.createdAt,
+
+      updatedAt:
+        new Date().toISOString(),
+    });
+
+  debts[index] =
+    merged;
+
+  saveDebts(
+    userId,
+    debts
+  );
+
   return merged;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payments
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function addPayment(
   userId: string,
   debtId: string,
   amountPaid: number,
   notes: string | null
-): { debt: StoredDebt; paymentLog: PaymentLog } | null {
-  const debts = getDebts(userId);
-  const index = debts.findIndex((d) => d.id === debtId);
-  if (index === -1) return null;
+):
+  | {
+      debt: StoredDebt;
+      paymentLog: PaymentLog;
+    }
+  | null {
+  if (
+    !Number.isFinite(
+      amountPaid
+    ) ||
+    amountPaid <= 0
+  ) {
+    return null;
+  }
 
-  const debt = debts[index];
-  const newBalance = Math.max(0, debt.remainingBalance - amountPaid);
+  const debts =
+    getDebts(userId);
+
+  const index =
+    debts.findIndex(
+      (debt) =>
+        debt.id === debtId
+    );
+
+  if (index === -1) {
+    return null;
+  }
+
+  const debt =
+    debts[index];
+
+  // Prevent overpayment.
+  if (
+    amountPaid >
+    debt.remainingBalance
+  ) {
+    return null;
+  }
+
+  const newBalance =
+    debt.remainingBalance -
+    amountPaid;
 
   const paymentLog: PaymentLog = {
-    id: 'pay-' + Date.now(),
+    id:
+      'pay-' +
+      Date.now() +
+      '-' +
+      Math.random()
+        .toString(36)
+        .slice(2, 6),
+
     debtId,
+
     amountPaid,
-    paidAt: new Date().toISOString(),
+
+    paidAt:
+      new Date().toISOString(),
+
     notes,
   };
 
-  const updated = enrichDebt({
-    ...debt,
-    remainingBalance: newBalance,
-    status: newBalance === 0 ? 'paid_off' : 'active',
-    updatedAt: new Date().toISOString(),
-    paymentLogs: [paymentLog, ...debt.paymentLogs],
-  });
+  const updated =
+    enrichDebt({
+      ...debt,
 
-  debts[index] = updated;
-  saveDebts(userId, debts);
-  return { debt: updated, paymentLog };
+      remainingBalance:
+        newBalance,
+
+      status:
+        newBalance === 0
+          ? 'paid_off'
+          : 'active',
+
+      updatedAt:
+        new Date().toISOString(),
+
+      paymentLogs: [
+        paymentLog,
+        ...debt.paymentLogs,
+      ],
+    });
+
+  debts[index] =
+    updated;
+
+  saveDebts(
+    userId,
+    debts
+  );
+
+  return {
+    debt: updated,
+    paymentLog,
+  };
 }
 
-export function clearAllDebts(userId: string): void {
-  saveDebts(userId, []);
+// ─────────────────────────────────────────────────────────────────────────────
+// Clear all debts
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function clearAllDebts(
+  userId: string
+): void {
+  saveDebts(
+    userId,
+    []
+  );
 }
 
-export function getDebtById(userId: string, debtId: string): StoredDebt | null {
-  const debts = getDebts(userId);
-  return debts.find((d) => d.id === debtId) || null;
+// ─────────────────────────────────────────────────────────────────────────────
+// Get one debt
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function getDebtById(
+  userId: string,
+  debtId: string
+): StoredDebt | null {
+  const debts =
+    getDebts(userId);
+
+  return (
+    debts.find(
+      (debt) =>
+        debt.id === debtId
+    ) ?? null
+  );
 }

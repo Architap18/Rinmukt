@@ -669,7 +669,7 @@ export default function DashboardPage() {
             Optimize your payoff order with Avalanche vs Snowball
           </h4>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Simulate monthly savings, listen to full audio walkthroughs, and set your active repayment plan.
+            Simulate monthly savings, listen to full audio explanations, and set your active repayment plan.
           </p>
         </div>
 

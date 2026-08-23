@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { UserPlus, Mail, KeyRound, User, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -13,7 +13,7 @@ function validatePassword(password: string): string | null {
 
 export default function SignupPage() {
   const router = useRouter();
-  const { signup, isAuthenticated, loading } = useAuth();
+  const { signup } = useAuth();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -22,28 +22,23 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (!loading && isAuthenticated) {
-      router.replace('/dashboard');
-    }
-  }, [loading, isAuthenticated, router]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     // Client-side validation
-    if (!name.trim()) {
-      setError('Please enter your name.');
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedName) {
+      setError('Please enter your full name.');
       return;
     }
-    if (!email.trim()) {
+    if (!trimmedEmail) {
       setError('Please enter your email address.');
       return;
     }
-    // Basic email format check
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       setError('Please enter a valid email address.');
       return;
     }
@@ -59,26 +54,18 @@ export default function SignupPage() {
 
     setSubmitting(true);
     try {
-      const result = await signup(name.trim(), email.trim(), password);
+      const result = await signup(trimmedName, trimmedEmail, password);
       if (!result.success) {
         setError(result.error || 'Signup failed. Please try again.');
+        setSubmitting(false);
       } else {
         router.push('/dashboard');
       }
-    } catch {
-      setError('An unexpected error occurred. Please try again.');
-    } finally {
+    } catch (err: any) {
+      setError(err?.message || 'An unexpected error occurred. Please try again.');
       setSubmitting(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[75vh] items-center justify-center">
-        <span className="h-6 w-6 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
-      </div>
-    );
-  }
 
   return (
     <div className="flex min-h-[75vh] items-center justify-center">
@@ -238,13 +225,13 @@ export default function SignupPage() {
 
           {/* Privacy note */}
           <p className="text-xs text-muted-foreground bg-muted/50 rounded-xl px-3 py-2.5 leading-relaxed">
-            Your account and all debt data are stored only in this browser. No data is sent to any server except for AI-powered debt extraction (optional).
+            Your account and all debt data are stored only in this browser. No external database is required.
           </p>
 
           <button
             type="submit"
             disabled={submitting}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 py-3.5 text-base font-bold text-white shadow-md transition-all min-h-[48px] disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 py-3.5 text-base font-bold text-white shadow-md transition-all min-h-[48px] disabled:opacity-60 cursor-pointer"
           >
             {submitting ? (
               <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />

@@ -37,10 +37,8 @@ type SpeechRecognitionInstance = {
   maxAlternatives: number;
   lang: string;
   onstart: (() => void) | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onresult: ((event: any) => void) | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onerror: ((event: any) => void) | null;
+  onresult: ((event: { resultIndex: number; results: { length: number; [index: number]: { isFinal: boolean; [index: number]: { transcript: string } } } }) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
@@ -51,8 +49,7 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
 function getSpeechRecognition(): SpeechRecognitionConstructor | null {
   if (typeof window === 'undefined') return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const w = window as any;
+  const w = window as unknown as { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
