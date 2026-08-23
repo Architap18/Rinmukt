@@ -1,13 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+// DATABASE REMOVED — This app uses an in-memory session store (src/lib/sessionStore.ts)
+// and JWT-based auth (src/lib/auth.ts). No database connection is needed.
+//
+// The Prisma client that was here has been removed to eliminate the
+// "Can't reach database server at host:5432" error. If you need to
+// re-introduce a database in the future, re-add PrismaClient here and
+// set DATABASE_URL in your environment.
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  });
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+export {}; // keep this a valid ES module

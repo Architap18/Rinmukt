@@ -1,27 +1,36 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, MessageSquare, CheckCircle2, ArrowRight, ShieldAlert, RefreshCw, HelpCircle, Mic, Keyboard } from 'lucide-react';
+import { CheckCircle2, ArrowRight, ShieldAlert, RefreshCw, Mic } from 'lucide-react';
 import { ExtractedDebt } from '@/lib/llmExtraction';
+import { inferSocialWeight } from '@/lib/llmExtraction';
 import { ClarificationModal } from '@/components/ClarificationModal';
 import { VoiceInput } from '@/components/VoiceInput';
 import { UrgencyBadge, SocialWeightBadge, LenderTypeBadge } from '@/components/UrgencyBadge';
 import { useLanguage } from '@/context/LanguageContext';
 import { calculateEffectiveAnnualCost, calculateMonthlyBleed, calculateUrgencyTier } from '@/lib/debtMath';
+import { useAuth } from '@/context/AuthContext';
 
 export default function NewDebtPage() {
   const router = useRouter();
   const { t } = useLanguage();
+  const { user, loading, isAuthenticated, createDebt } = useAuth();
+
   const [inputText, setInputText] = useState('');
   const [showVoice, setShowVoice] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
 
-  // Extracted state
   const [extracted, setExtracted] = useState<ExtractedDebt | null>(null);
   const [showClarification, setShowClarification] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [loading, isAuthenticated, router]);
 
   const sampleInputs = [
     'Sabziwale ko 2000 dena hai, jab paisa aaye tab de dunga',
@@ -46,7 +55,14 @@ export default function NewDebtPage() {
         body: JSON.stringify({ text: query }),
       });
 
-      const data = await res.json();
+      let data: any;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        throw new Error('Server returned an unexpected response. Please try again.');
+      }
+
       if (!res.ok) throw new Error(data.error || 'Failed to parse debt input');
 
       const result: ExtractedDebt = data.extraction;
@@ -63,7 +79,7 @@ export default function NewDebtPage() {
   };
 
   const handleSaveDebt = async () => {
-    if (!extracted) return;
+    if (!extracted || !user) return;
     if (extracted.ambiguous) {
       setShowClarification(true);
       return;
@@ -71,16 +87,36 @@ export default function NewDebtPage() {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/debts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(extracted),
-      });
+      const principal = extracted.principalAmount || 0;
+      const rate = extracted.interestRate ?? 0;
+      const duration = extracted.durationMonths ?? 12;
+      const resolvedSocialWeight = extracted.socialWeight || inferSocialWeight(extracted.lenderType);
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to save debt');
+      let parsedStartDate = new Date().toISOString();
+      if (extracted.startDate) {
+        const parsed = new Date(extracted.startDate);
+        if (!isNaN(parsed.getTime())) parsedStartDate = parsed.toISOString();
       }
+
+      createDebt({
+        lenderName: extracted.lenderName,
+        lenderType: extracted.lenderType,
+        principalAmount: principal,
+        remainingBalance: principal,
+        interestDescription: extracted.repaymentExpectation || null,
+        interestType: extracted.interestType || 'none',
+        interestRate: rate,
+        startDate: parsedStartDate,
+        durationMonths: duration,
+        repaymentExpectation: extracted.repaymentExpectation || 'Repay as agreed',
+        socialWeight: resolvedSocialWeight,
+        effectiveAnnualCost: previewEac,
+        monthlyBleed: previewBleed,
+        urgencyTier: previewUrgency,
+        financialUrgency: previewUrgency,
+        relationalUrgency: 'low',
+        status: 'active',
+      });
 
       router.push('/debts');
     } catch (err: any) {
@@ -90,7 +126,7 @@ export default function NewDebtPage() {
     }
   };
 
-  // Compute live EAC and bleed preview from deterministic math engine
+  // Compute live EAC and bleed preview
   const previewEac = extracted
     ? calculateEffectiveAnnualCost(
         extracted.principalAmount,
@@ -110,6 +146,14 @@ export default function NewDebtPage() {
     : 0;
 
   const previewUrgency = calculateUrgencyTier(previewEac);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-300 pb-12">
@@ -172,7 +216,7 @@ export default function NewDebtPage() {
                   }}
                   className="rounded-xl bg-muted px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-300 transition-colors text-left"
                 >
-                  "{sample}"
+                  &quot;{sample}&quot;
                 </button>
               ))}
             </div>
@@ -200,10 +244,7 @@ export default function NewDebtPage() {
                   <span>Calculating EAC...</span>
                 </>
               ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  <span>Analyze & Calculate EAC</span>
-                </>
+                <span>Analyze &amp; Calculate EAC</span>
               )}
             </button>
           </div>
@@ -240,18 +281,18 @@ export default function NewDebtPage() {
                   onClick={() => setShowClarification(true)}
                   className="mt-2 text-xs font-bold text-primary underline"
                 >
-                  Resolve Terms Now →
+                  Resolve Terms Now
                 </button>
               </div>
             </div>
           )}
 
-          {/* Deterministic Financial Metrics */}
+          {/* Financial Metrics */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-xl bg-background p-4 border border-border">
               <div className="text-xs font-semibold text-muted-foreground uppercase">Principal Borrowed</div>
               <div className="font-display text-2xl font-extrabold text-foreground mt-1">
-                ₹{extracted.principalAmount.toLocaleString('en-IN')}
+                {'\u20b9'}{extracted.principalAmount.toLocaleString('en-IN')}
               </div>
               <div className="text-xs text-muted-foreground mt-1">Original principal amount</div>
             </div>
@@ -267,26 +308,25 @@ export default function NewDebtPage() {
             <div className="rounded-xl bg-background p-4 border border-border">
               <div className="text-xs font-semibold text-muted-foreground uppercase">Monthly Rupee Bleed</div>
               <div className="font-display text-2xl font-extrabold text-destructive mt-1">
-                ₹{previewBleed.toLocaleString('en-IN')} <span className="text-xs font-normal text-muted-foreground">/ mo</span>
+                {'\u20b9'}{previewBleed.toLocaleString('en-IN')} <span className="text-xs font-normal text-muted-foreground">/ mo</span>
               </div>
               <div className="text-xs text-muted-foreground mt-1">Rupee cost per month</div>
             </div>
           </div>
 
-          {/* Signal Separation: Financial Urgency vs Relational Urgency */}
+          {/* Signals */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div className="space-y-1">
-              <div className="text-xs font-semibold text-muted-foreground">Financial Urgency Signal (EAC & Bleed)</div>
+              <div className="text-xs font-semibold text-muted-foreground">Financial Urgency Signal (EAC &amp; Bleed)</div>
               <UrgencyBadge urgencyTier={previewUrgency} eac={previewEac} />
             </div>
-
             <div className="space-y-1">
               <div className="text-xs font-semibold text-muted-foreground">Relational Urgency Signal (Social Weight)</div>
               <SocialWeightBadge socialWeight={extracted.socialWeight} lenderType={extracted.lenderType} />
             </div>
           </div>
 
-          {/* Start Date & Repayment Terms Info */}
+          {/* Start Date & Repayment Terms */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div className="rounded-xl bg-background p-3 border border-border">
               <span className="text-muted-foreground font-semibold">Estimated Start Date:</span>{' '}
@@ -304,9 +344,9 @@ export default function NewDebtPage() {
             </div>
           </div>
 
-          {/* Repayment Expectation Raw Text */}
+          {/* Original Text */}
           <div className="rounded-xl bg-muted/50 p-4 border border-border text-xs text-muted-foreground">
-            <strong className="text-foreground">Original Text Description:</strong> "{inputText}"
+            <strong className="text-foreground">Original Text Description:</strong> &quot;{inputText}&quot;
           </div>
 
           {/* Save Action */}
@@ -321,7 +361,7 @@ export default function NewDebtPage() {
             <button
               type="button"
               onClick={handleSaveDebt}
-              disabled={saving}
+              disabled={saving || extracted.ambiguous}
               className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-md hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {saving ? (
@@ -329,7 +369,7 @@ export default function NewDebtPage() {
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  Save & Normalize Debt
+                  Save &amp; Normalize Debt
                 </>
               )}
             </button>
@@ -337,7 +377,7 @@ export default function NewDebtPage() {
         </div>
       )}
 
-      {/* Human-in-the-Loop Clarification Modal */}
+      {/* Clarification Modal */}
       {extracted && (
         <ClarificationModal
           isOpen={showClarification}

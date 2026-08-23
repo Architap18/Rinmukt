@@ -185,7 +185,7 @@ export function VoiceExplanationPlayer({
                   aria-label="Explain this to me aloud"
                 >
                   <Volume2 className="w-4 h-4" />
-                  <span>{isPaused ? 'Resume Voice' : '🔊 Explain this to me'}</span>
+                  <span>{isPaused ? 'Resume Voice' : 'Listen to Explanation'}</span>
                 </button>
               ) : (
                 <button

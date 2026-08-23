@@ -2,75 +2,42 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   PlusCircle,
   Table as TableIcon,
   Trash2,
   ArrowUpRight,
-  IndianRupee,
-  HelpCircle,
-  ShieldCheck,
-  Globe,
-  Sparkles,
   ChevronDown,
   ChevronUp,
   ChevronRight,
 } from 'lucide-react';
 import { UrgencyBadge, SocialWeightBadge, LenderTypeBadge } from '@/components/UrgencyBadge';
-import { TrustNotice } from '@/components/TrustNotice';
 import { VoiceExplanationPlayer } from '@/components/VoiceExplanationPlayer';
 import { useLanguage } from '@/context/LanguageContext';
-import { Language, languageNames } from '@/lib/translations';
 import { generateDeterministicDebtExplanation } from '@/lib/explanationService';
-
-interface Debt {
-  id: string;
-  lenderName: string;
-  lenderType: string;
-  principalAmount: number;
-  remainingBalance: number;
-  interestType: string;
-  interestRate: number;
-  repaymentExpectation: string;
-  socialWeight: string;
-  effectiveAnnualCost: number;
-  monthlyBleed: number;
-  urgencyTier: 'high' | 'medium' | 'low';
-  status: string;
-  createdAt: string;
-}
+import { useAuth } from '@/context/AuthContext';
 
 export default function DebtsComparisonPage() {
-  const { language, setLanguage, t } = useLanguage();
-  const [debts, setDebts] = useState<Debt[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { language, t } = useLanguage();
+  const { debts, loading, isAuthenticated, removeDebt } = useAuth();
+  const router = useRouter();
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedDebtId, setExpandedDebtId] = useState<string | null>(null);
 
-  const fetchDebts = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/debts');
-      const data = await res.json();
-      setDebts(data.debts || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchDebts();
-  }, []);
+    if (!loading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [loading, isAuthenticated, router]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this debt?')) return;
     setDeletingId(id);
     try {
-      await fetch(`/api/debts/${id}`, { method: 'DELETE' });
-      fetchDebts();
-    } catch (err) {
+      removeDebt(id);
+    } catch {
       alert('Failed to delete debt');
     } finally {
       setDeletingId(null);
@@ -174,15 +141,15 @@ export default function DebtsComparisonPage() {
 
                       {/* Original Text Description */}
                       <td className="py-4 px-4 text-xs text-muted-foreground max-w-xs italic">
-                        "{debt.repaymentExpectation}"
+                        &quot;{debt.repaymentExpectation}&quot;
                       </td>
 
                       {/* Balance */}
                       <td className="py-4 px-4 text-right font-display font-extrabold text-foreground">
-                        ₹{debt.remainingBalance.toLocaleString('en-IN')}
+                        {'\u20b9'}{debt.remainingBalance.toLocaleString('en-IN')}
                         {debt.remainingBalance < debt.principalAmount && (
                           <div className="text-[10px] text-muted-foreground font-sans font-normal">
-                            of ₹{debt.principalAmount.toLocaleString('en-IN')}
+                            of {'\u20b9'}{debt.principalAmount.toLocaleString('en-IN')}
                           </div>
                         )}
                       </td>
@@ -194,13 +161,13 @@ export default function DebtsComparisonPage() {
 
                       {/* Monthly Bleed */}
                       <td className="py-4 px-4 text-right font-display font-extrabold text-destructive">
-                        ₹{debt.monthlyBleed.toLocaleString('en-IN')}
+                        {'\u20b9'}{debt.monthlyBleed.toLocaleString('en-IN')}
                         <span className="text-[10px] font-sans font-normal text-muted-foreground">/mo</span>
                       </td>
 
                       {/* Signal 1: Financial Urgency */}
                       <td className="py-4 px-4">
-                        <UrgencyBadge urgencyTier={debt.urgencyTier} eac={debt.effectiveAnnualCost} />
+                        <UrgencyBadge urgencyTier={debt.urgencyTier as 'high' | 'medium' | 'low'} eac={debt.effectiveAnnualCost} />
                       </td>
 
                       {/* Signal 2: Relational Urgency */}
@@ -208,7 +175,7 @@ export default function DebtsComparisonPage() {
                         <SocialWeightBadge socialWeight={debt.socialWeight} lenderType={debt.lenderType} />
                       </td>
 
-                      {/* Actions & Inline Audio Toggle */}
+                      {/* Actions */}
                       <td className="py-4 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <button
@@ -219,9 +186,8 @@ export default function DebtsComparisonPage() {
                                 ? 'bg-primary text-primary-foreground border-primary'
                                 : 'border-primary/30 text-primary bg-primary/5 hover:bg-primary/10'
                             }`}
-                            title="Hear / Read Plain AI Explanation"
+                            title="Hear / Read Plain Explanation"
                           >
-                            <Sparkles className="w-3.5 h-3.5" />
                             <span>Explain</span>
                             {isExpanded ? <ChevronUp className="w-3 h-3 ml-0.5" /> : <ChevronDown className="w-3 h-3 ml-0.5" />}
                           </button>
@@ -244,7 +210,7 @@ export default function DebtsComparisonPage() {
                       </td>
                     </tr>
 
-                    {/* Inline Expanded AI Explanation Row */}
+                    {/* Inline Expanded Explanation Row */}
                     {isExpanded && (
                       <tr className="bg-primary/5 border-b border-primary/20">
                         <td colSpan={8} className="p-4">
@@ -265,7 +231,7 @@ export default function DebtsComparisonPage() {
         </div>
       )}
 
-      {/* Guided Next Step Journey Card */}
+      {/* Guided Next Step */}
       {debts.length > 0 && (
         <div className="rounded-2xl bg-card border border-border p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
@@ -273,7 +239,7 @@ export default function DebtsComparisonPage() {
               Next in the 6-Step Pipeline
             </span>
             <h4 className="font-display text-lg font-bold text-foreground mt-0.5">
-              Compare Avalanche vs Snowball Strategies & Simulate Payoff
+              Compare Avalanche vs Snowball Strategies &amp; Simulate Payoff
             </h4>
             <p className="text-xs text-muted-foreground mt-0.5">
               Hear your full plan read aloud with browser voice and simulate what-if surplus adjustments.
@@ -285,7 +251,7 @@ export default function DebtsComparisonPage() {
               href="/plan"
               className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
             >
-              <span>Open Payoff Planner & Simulator</span>
+              <span>Open Payoff Planner &amp; Simulator</span>
               <ChevronRight className="w-4 h-4" />
             </Link>
           </div>

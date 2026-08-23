@@ -214,12 +214,22 @@ export function DebtWeb({ debts, className = '' }: DebtWebProps) {
                   <div className="font-display text-lg font-extrabold text-foreground mt-0.5">
                     ₹{selectedDebt.remainingBalance.toLocaleString('en-IN')}
                   </div>
+                  <div className="text-[10px] text-muted-foreground">Amount still owed</div>
                 </div>
 
                 <div className="rounded-xl bg-background p-3 border border-border">
-                  <div className="text-[10px] uppercase font-bold text-muted-foreground">Effective Cost</div>
+                  <div className="text-[10px] uppercase font-bold text-muted-foreground">True Yearly Cost</div>
                   <div className="font-display text-lg font-extrabold text-primary mt-0.5">
                     {selectedDebt.effectiveAnnualCost}% <span className="text-xs font-normal text-muted-foreground">/ yr</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">Effective Annual Cost (EAC)</div>
+                </div>
+
+                <div className="rounded-xl bg-background p-3 border border-border col-span-2">
+                  <div className="text-[10px] uppercase font-bold text-muted-foreground">Monthly Interest Drain</div>
+                  <div className="font-display text-base font-extrabold text-destructive mt-0.5">
+                    ₹{selectedDebt.monthlyBleed.toLocaleString('en-IN')}
+                    <span className="text-xs font-normal text-muted-foreground ml-1">/mo draining away</span>
                   </div>
                 </div>
               </div>
@@ -230,12 +240,17 @@ export function DebtWeb({ debts, className = '' }: DebtWebProps) {
                 <RelationalUrgencyBadge socialWeight={selectedDebt.socialWeight} lenderType={selectedDebt.lenderType} />
               </div>
 
-              {/* Voice & Explanation Player */}
+              {/* Voice & Explanation Player with Confidence Tag */}
               <VoiceExplanationPlayer
                 text={explanationText}
                 language={language}
-                title="Debt Insight"
-                isHighConfidence={true}
+                title="Debt Summary & Advice"
+                isHighConfidence={selectedDebt.interestRate !== undefined}
+                hasAssumptions={!selectedDebt.interestRate && selectedDebt.effectiveAnnualCost > 0}
+                assumptionNotes={!selectedDebt.interestRate && selectedDebt.effectiveAnnualCost > 0
+                  ? ['Interest rate was estimated based on your description.']
+                  : undefined
+                }
               />
             </div>
           ) : (

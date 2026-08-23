@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+import { getAppState, saveAppState } from '@/lib/sessionStore';
 
 export async function GET() {
   const session = await getCurrentUser();
@@ -8,20 +8,7 @@ export async function GET() {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      monthlySurplus: true,
-      monthlyIncome: true,
-      selectedStrategy: true,
-      createdAt: true,
-    },
-  });
-
+  const { user } = getAppState();
   return NextResponse.json({ user });
 }
 
@@ -33,22 +20,22 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const updateData: Record<string, any> = {};
+    const state = getAppState();
 
     if (body.monthlySurplus !== undefined) {
       const surplus = parseFloat(body.monthlySurplus);
       if (!isNaN(surplus) && surplus >= 0) {
-        updateData.monthlySurplus = surplus;
+        state.user.monthlySurplus = surplus;
       }
     }
 
     if (body.monthlyIncome !== undefined) {
       if (body.monthlyIncome === null || body.monthlyIncome === '') {
-        updateData.monthlyIncome = null;
+        state.user.monthlyIncome = null;
       } else {
         const income = parseFloat(body.monthlyIncome);
         if (!isNaN(income) && income >= 0) {
-          updateData.monthlyIncome = income;
+          state.user.monthlyIncome = income;
         }
       }
     }
@@ -56,25 +43,12 @@ export async function PUT(req: Request) {
     if (body.selectedStrategy !== undefined) {
       const validStrategies = ['avalanche', 'snowball', 'fastest', 'balanced'];
       if (validStrategies.includes(body.selectedStrategy)) {
-        updateData.selectedStrategy = body.selectedStrategy;
+        state.user.selectedStrategy = body.selectedStrategy;
       }
     }
 
-    const updated = await prisma.user.update({
-      where: { id: session.userId },
-      data: updateData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        monthlySurplus: true,
-        monthlyIncome: true,
-        selectedStrategy: true,
-      },
-    });
-
-    return NextResponse.json({ user: updated });
+    saveAppState(state);
+    return NextResponse.json({ user: state.user });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to update user profile' }, { status: 500 });
   }

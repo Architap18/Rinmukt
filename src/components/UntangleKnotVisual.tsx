@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Sliders, CheckCircle2 } from 'lucide-react';
+import { Sliders } from 'lucide-react';
 
 interface UntangleKnotVisualProps {
   progressPercentage: number; // 0 (100% tangled) to 100 (100% untangled / paid off)
@@ -10,7 +10,6 @@ interface UntangleKnotVisualProps {
 }
 
 export function UntangleKnotVisual({ progressPercentage, totalDebtCount = 4 }: UntangleKnotVisualProps) {
-  // Allow interactive simulation slider for judge walkthrough
   const [overrideProgress, setOverrideProgress] = useState<number | null>(null);
 
   const effectiveProgress = overrideProgress !== null ? overrideProgress : progressPercentage;
@@ -19,10 +18,10 @@ export function UntangleKnotVisual({ progressPercentage, totalDebtCount = 4 }: U
   const t = 1 - p;
 
   const getKnotStateLabel = () => {
-    if (effectiveProgress >= 100) return { label: '🎉 Fully Untangled & Debt Free!', color: 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300' };
-    if (effectiveProgress >= 65) return { label: '🌿 Major Knot Loosened — High Relief', color: 'text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 border-sky-300' };
-    if (effectiveProgress >= 30) return { label: '⚡ Unwinding Underway — Bleed Reduced', color: 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-300' };
-    return { label: '🪢 Entangled Obligations — High Bleed', color: 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 border-orange-300' };
+    if (effectiveProgress >= 100) return { label: 'Fully Untangled & Debt Free', color: 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300' };
+    if (effectiveProgress >= 65) return { label: 'Major Knot Loosened — High Relief', color: 'text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 border-sky-300' };
+    if (effectiveProgress >= 30) return { label: 'Unwinding Underway — Bleed Reduced', color: 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-300' };
+    return { label: 'Entangled Obligations — High Bleed', color: 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 border-orange-300' };
   };
 
   const status = getKnotStateLabel();
@@ -46,7 +45,6 @@ export function UntangleKnotVisual({ progressPercentage, totalDebtCount = 4 }: U
         </div>
 
         <div className={`px-3.5 py-1.5 rounded-2xl text-xs sm:text-sm font-bold border ${status.color} shadow-xs shrink-0 inline-flex items-center gap-1.5`}>
-          <Sparkles className="w-4 h-4" />
           <span>{status.label}</span>
         </div>
       </div>
@@ -118,10 +116,10 @@ export function UntangleKnotVisual({ progressPercentage, totalDebtCount = 4 }: U
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-sky-600"></span> Shopkeeper Credit</span>
         </div>
 
-        {/* Interactive Scrub Toggle for Judges */}
+        {/* Interactive Progress Preview */}
         <div className="flex items-center gap-2 shrink-0">
           <Sliders className="w-3.5 h-3.5 text-amber-600" />
-          <span className="text-xs font-bold text-foreground">Interactive Knot Test:</span>
+          <span className="text-xs font-bold text-foreground">Interactive Preview:</span>
           <input
             type="range"
             min="0"

@@ -127,7 +127,7 @@ export function AddDebtModal({ isOpen, onClose, onSave, editingDebt, prefillNote
             </p>
             {!editingDebt && prefillNotes && (
               <span className="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 px-2 py-0.5 rounded-full">
-                🎤 From voice input
+                From voice input
               </span>
             )}
           </div>

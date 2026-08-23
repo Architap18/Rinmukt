@@ -2,12 +2,12 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   IndianRupee,
   Calendar,
   Zap,
   TrendingDown,
-  Sparkles,
   Printer,
   CheckCircle2,
   Clock,
@@ -31,60 +31,35 @@ import { VoiceExplanationPlayer } from '@/components/VoiceExplanationPlayer';
 import { useLanguage } from '@/context/LanguageContext';
 import { Language, languageNames } from '@/lib/translations';
 import { generateDeterministicPlanExplanation } from '@/lib/explanationService';
-
-interface Debt {
-  id: string;
-  lenderName: string;
-  lenderType: string;
-  principalAmount: number;
-  remainingBalance: number;
-  interestType: string;
-  interestRate: number;
-  durationMonths?: number;
-  repaymentExpectation: string;
-  socialWeight: string;
-  effectiveAnnualCost: number;
-  monthlyBleed: number;
-  urgencyTier: 'high' | 'medium' | 'low';
-}
+import { useAuth } from '@/context/AuthContext';
 
 export default function PlanPage() {
+  const router = useRouter();
   const { language, setLanguage, t } = useLanguage();
+  const { user, debts, loading, isAuthenticated, updateProfile } = useAuth();
+
   const [surplus, setSurplus] = useState<string>('3000');
   const [activeStrategy, setActiveStrategy] = useState<'avalanche' | 'snowball' | 'balanced'>('avalanche');
-  const [debts, setDebts] = useState<Debt[]>([]);
-  const [loading, setLoading] = useState(true);
   const [savingStrategy, setSavingStrategy] = useState(false);
   const [copiedRecap, setCopiedRecap] = useState(false);
 
   const printRef = useRef<HTMLDivElement>(null);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/plan');
-      if (!res.ok) throw new Error('Failed to load plan data');
-      const data = await res.json();
-
-      if (data.userMonthlySurplus) {
-        setSurplus(String(data.userMonthlySurplus));
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+    if (user) {
+      if (user.monthlySurplus) {
+        setSurplus(String(user.monthlySurplus));
       }
-      if (data.selectedStrategy) {
-        const strat = data.selectedStrategy === 'fastest' ? 'avalanche' : data.selectedStrategy;
+      if (user.selectedStrategy) {
+        const strat = user.selectedStrategy === 'fastest' ? 'avalanche' : (user.selectedStrategy as 'avalanche' | 'snowball' | 'balanced');
         setActiveStrategy(strat);
       }
-
-      setDebts(data.debts || []);
-    } catch (err: any) {
-      console.error(err);
-    } finally {
-      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  }, [loading, isAuthenticated, user, router]);
 
   const surplusNum = useMemo(() => {
     const num = parseFloat(surplus);
@@ -151,43 +126,16 @@ export default function PlanPage() {
     );
   }, [currentPlan, activeStrategy, surplusNum, activeDebts, interestDifference, language]);
 
-  const handleSetActivePlan = async (newStrategy: 'avalanche' | 'snowball' | 'balanced') => {
+  const handleSetActivePlan = (newStrategy: 'avalanche' | 'snowball' | 'balanced') => {
     setActiveStrategy(newStrategy);
-    setSavingStrategy(true);
-    try {
-      const res = await fetch('/api/plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          strategy: newStrategy,
-          monthlySurplus: surplusNum,
-        }),
-      });
-      if (!res.ok) throw new Error('Failed to update active plan');
-    } catch (err: any) {
-      alert('Error updating active strategy: ' + err.message);
-    } finally {
-      setSavingStrategy(false);
-    }
+    updateProfile({ selectedStrategy: newStrategy, monthlySurplus: surplusNum });
   };
 
-  const handleSurplusSubmit = async (e: React.FormEvent) => {
+  const handleSurplusSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSavingStrategy(true);
-    try {
-      await fetch('/api/plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          strategy: activeStrategy,
-          monthlySurplus: surplusNum,
-        }),
-      });
-    } catch (err: any) {
-      console.error(err);
-    } finally {
-      setSavingStrategy(false);
-    }
+    updateProfile({ selectedStrategy: activeStrategy, monthlySurplus: surplusNum });
+    setTimeout(() => setSavingStrategy(false), 300);
   };
 
   const handlePrint = () => {
@@ -195,14 +143,14 @@ export default function PlanPage() {
   };
 
   const handleCopyRecap = () => {
-    const recap = `📋 Rinmukht Debt Freedom Plan Summary:\n` +
+    const recap = `Rinmukht Debt Freedom Plan Summary:\n` +
       `• Total Debts: ${activeDebts.length}\n` +
       `• Total Balance: ₹${activeDebts.reduce((sum, d) => sum + (d.remainingBalance ?? d.principalAmount), 0).toLocaleString('en-IN')}\n` +
       `• Strategy: ${activeStrategy.toUpperCase()}\n` +
       `• Target Debt-Free Date: ${currentPlan.debtFreeDate} (${currentPlan.totalMonths} months)\n` +
       `• Total Interest: ₹${currentPlan.totalInterestPaid.toLocaleString('en-IN')}\n` +
-      `• Payoff Sequence: ${currentPlan.payoffOrder.map((p) => p.lenderName).join(' → ')}\n\n` +
-      `💡 Plain Explanation: "${wholePlanExplanation}"`;
+      `• Payoff Sequence: ${currentPlan.payoffOrder.map((p) => p.lenderName).join(' -> ')}\n\n` +
+      `Explanation: "${wholePlanExplanation}"`;
 
     navigator.clipboard.writeText(recap);
     setCopiedRecap(true);
@@ -214,7 +162,7 @@ export default function PlanPage() {
       <div className="flex h-64 items-center justify-center">
         <div className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          Calculating Deterministic Repayment Plans...
+          Calculating Repayment Plans...
         </div>
       </div>
     );
@@ -230,7 +178,6 @@ export default function PlanPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 mb-2 border border-amber-500/20">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
               <span>{t('currentActivePlan') || 'Active Strategy'}: {activeStrategy.toUpperCase()}</span>
             </div>
             <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
@@ -271,7 +218,7 @@ export default function PlanPage() {
               </div>
               <div>
                 <h3 className="font-display text-xl font-bold text-foreground">
-                  Live "What-If" Debt Freedom Simulator
+                  Live &quot;What-If&quot; Debt Freedom Simulator
                 </h3>
                 <p className="text-xs sm:text-sm text-muted-foreground font-medium">
                   Drag the slider to see how extra monthly payment cuts your debt-free date in real time.
@@ -311,9 +258,8 @@ export default function PlanPage() {
           {/* Dynamic Simulator Real-Time Feedback Pill */}
           <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/40 p-4 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs sm:text-sm font-medium text-amber-900 dark:text-amber-200">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-amber-600 shrink-0" />
               <span>
-                At <strong>₹{surplusNum.toLocaleString('en-IN')}/mo</strong> extra, you will be completely debt-free by <strong className="text-amber-700 dark:text-amber-300 underline font-bold">{currentPlan.debtFreeDate}</strong> ({currentPlan.totalMonths} months).
+                At <strong>₹{surplusNum.toLocaleString('en-IN')}/mo</strong> extra, you will be completely debt-free by <strong className="text-amber-700 dark:text-amber-300 underline font-bold">{currentPlan.debtFreeDate || 'N/A'}</strong> ({currentPlan.totalMonths} months).
               </span>
             </div>
             <form onSubmit={handleSurplusSubmit} className="shrink-0 self-end sm:self-center">
@@ -356,7 +302,6 @@ export default function PlanPage() {
           </div>
         )}
 
-        {/* ========================================================================= */}
         {/* STRATEGY COMPARISON: AVALANCHE VS SNOWBALL */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Card 1: Debt Avalanche */}
@@ -417,14 +362,18 @@ export default function PlanPage() {
                   Target Payoff Sequence:
                 </span>
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  {avalanchePlan.payoffOrder.map((d, index) => (
-                    <span
-                      key={d.debtId}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card border border-border text-xs font-bold text-foreground shadow-2xs"
-                    >
-                      <strong className="text-amber-600">{index + 1}.</strong> {d.lenderName}
-                    </span>
-                  ))}
+                  {avalanchePlan.payoffOrder.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">No active debts</span>
+                  ) : (
+                    avalanchePlan.payoffOrder.map((d, index) => (
+                      <span
+                        key={d.debtId}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card border border-border text-xs font-bold text-foreground shadow-2xs"
+                      >
+                        <strong className="text-amber-600">{index + 1}.</strong> {d.lenderName}
+                      </span>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -432,7 +381,7 @@ export default function PlanPage() {
             <div className="pt-4 border-t border-border">
               {activeStrategy === 'avalanche' ? (
                 <div className="text-center text-sm font-bold text-amber-600 py-2.5">
-                  {t('currentActivePlan') || '✓ Current Active Strategy'}
+                  {t('currentActivePlan') || 'Current Active Strategy'}
                 </div>
               ) : (
                 <button
@@ -503,14 +452,18 @@ export default function PlanPage() {
                   Target Payoff Sequence:
                 </span>
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  {snowballPlan.payoffOrder.map((d, index) => (
-                    <span
-                      key={d.debtId}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card border border-border text-xs font-bold text-foreground shadow-2xs"
-                    >
-                      <strong className="text-sky-600">{index + 1}.</strong> {d.lenderName}
-                    </span>
-                  ))}
+                  {snowballPlan.payoffOrder.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">No active debts</span>
+                  ) : (
+                    snowballPlan.payoffOrder.map((d, index) => (
+                      <span
+                        key={d.debtId}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card border border-border text-xs font-bold text-foreground shadow-2xs"
+                      >
+                        <strong className="text-sky-600">{index + 1}.</strong> {d.lenderName}
+                      </span>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -518,7 +471,7 @@ export default function PlanPage() {
             <div className="pt-4 border-t border-border">
               {activeStrategy === 'snowball' ? (
                 <div className="text-center text-sm font-bold text-sky-600 py-2.5">
-                  {t('currentActivePlan') || '✓ Current Active Strategy'}
+                  {t('currentActivePlan') || 'Current Active Strategy'}
                 </div>
               ) : (
                 <button
@@ -532,7 +485,7 @@ export default function PlanPage() {
           </div>
         </div>
 
-        {/* Session Recap Card ("Here's what we found") */}
+        {/* Session Recap Card */}
         <div className="rounded-2xl bg-card p-6 border border-border shadow-sm space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2.5">
@@ -540,7 +493,7 @@ export default function PlanPage() {
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-display text-xl font-bold text-foreground">Session Recap ("Here's what we found")</h3>
+                <h3 className="font-display text-xl font-bold text-foreground">Summary Recap</h3>
                 <p className="text-xs text-muted-foreground">
                   Complete summary of your normalized debt obligations and payoff trajectory.
                 </p>
@@ -570,7 +523,7 @@ export default function PlanPage() {
             </div>
             <div className="p-3.5 rounded-xl bg-background border border-border space-y-1">
               <span className="text-muted-foreground font-semibold">Target Debt-Free Date</span>
-              <div className="font-display text-lg font-bold text-primary">{currentPlan.debtFreeDate}</div>
+              <div className="font-display text-lg font-bold text-primary">{currentPlan.debtFreeDate || 'N/A'}</div>
             </div>
             <div className="p-3.5 rounded-xl bg-background border border-border space-y-1">
               <span className="text-muted-foreground font-semibold">Total Plan Interest</span>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { verifyPassword, signToken, setAuthCookie } from '@/lib/auth';
+import { signToken, setAuthCookie } from '@/lib/auth';
+import { isJudgeLogin, resetToSample } from '@/lib/sessionStore';
 
 export async function POST(req: Request) {
   try {
@@ -10,30 +10,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 });
     }
 
-    let user = await prisma.user.findUnique({ where: { email } });
-    if (!user && (email === 'demo@rinmukht.in' || email === 'demo@karza.in')) {
-      user = await prisma.user.findFirst({
-        where: { email: { in: ['demo@rinmukht.in', 'demo@karza.in'] } },
-      });
-    }
-    if (!user) {
+    if (!isJudgeLogin(email, password)) {
       return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
     }
 
-    const valid = await verifyPassword(password, user.passwordHash);
-    if (!valid) {
-      return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
-    }
-
-    const token = await signToken({ userId: user.id, email: user.email });
+    const state = resetToSample();
+    const token = await signToken({ userId: state.user.id, email: state.user.email });
     setAuthCookie(token);
 
     return NextResponse.json({
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        monthlySurplus: user.monthlySurplus,
+        id: state.user.id,
+        name: state.user.name,
+        email: state.user.email,
+        monthlySurplus: state.user.monthlySurplus,
       },
     });
   } catch (err: any) {

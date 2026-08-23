@@ -5,70 +5,33 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   PlusCircle,
-  ArrowUpRight,
-  TrendingDown,
   TrendingUp,
-  AlertCircle,
+  TrendingDown,
   AlertTriangle,
-  CheckCircle2,
+  AlertCircle,
   IndianRupee,
   ShieldCheck,
   Calendar,
-  Wallet,
-  Clock,
-  Sparkles,
-  Edit3,
-  Percent,
   X,
-  Layers,
   ChevronRight,
+  ArrowUpRight,
+  CheckCircle2,
+  Wallet,
 } from 'lucide-react';
-import { UntangleKnotVisual } from '@/components/UntangleKnotVisual';
 import { UrgencyBadge, SocialWeightBadge, LenderTypeBadge } from '@/components/UrgencyBadge';
-import { calculateMonthlyBleed, generatePayoffSchedule, RawDebtInput } from '@/lib/debtMath';
+import { generatePayoffSchedule, calculateMonthlyBleed, RawDebtInput } from '@/lib/debtMath';
 import { TrustNotice } from '@/components/TrustNotice';
 import { DebtWeb } from '@/components/DebtWeb';
+import { UntangleKnotVisual } from '@/components/UntangleKnotVisual';
 import { VoiceExplanationPlayer } from '@/components/VoiceExplanationPlayer';
 import { useLanguage } from '@/context/LanguageContext';
-import { Language, languageNames } from '@/lib/translations';
 import { generateDeterministicPlanExplanation } from '@/lib/explanationService';
-import { Globe } from 'lucide-react';
-
-interface Debt {
-  id: string;
-  lenderName: string;
-  lenderType: string;
-  principalAmount: number;
-  remainingBalance: number;
-  interestType: string;
-  interestRate: number;
-  durationMonths?: number;
-  repaymentExpectation: string;
-  socialWeight: string;
-  effectiveAnnualCost: number;
-  monthlyBleed: number;
-  urgencyTier: 'high' | 'medium' | 'low';
-  dueDate?: string;
-  status: string;
-  createdAt: string;
-}
-
-interface UserProfile {
-  id: string;
-  name: string;
-  email: string;
-  monthlySurplus: number;
-  monthlyIncome?: number | null;
-  selectedStrategy?: 'avalanche' | 'snowball' | 'fastest' | 'balanced';
-}
+import { useAuth } from '@/context/AuthContext';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { language, setLanguage, t } = useLanguage();
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [debts, setDebts] = useState<Debt[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { language, t } = useLanguage();
+  const { user, debts, loading, isAuthenticated, logPayment, updateProfile } = useAuth();
 
   // Quick Payment Modal State
   const [paymentDebtId, setPaymentDebtId] = useState<string | null>(null);
@@ -81,58 +44,32 @@ export default function DashboardPage() {
   const [incomeInput, setIncomeInput] = useState('');
   const [savingIncome, setSavingIncome] = useState(false);
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const userRes = await fetch('/api/auth/me');
-      if (userRes.status === 401) {
-        router.push('/login');
-        return;
-      }
-      const userData = await userRes.json();
-      setUser(userData.user);
-      if (userData.user?.monthlyIncome) {
-        setIncomeInput(String(userData.user.monthlyIncome));
-      }
-
-      const debtsRes = await fetch('/api/debts');
-      const debtsData = await debtsRes.json();
-      setDebts(debtsData.debts || []);
-    } catch (err: any) {
-      setError('Failed to load dashboard metrics.');
-    } finally {
-      setLoading(false);
+  // Redirect unauthenticated users
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.push('/login');
     }
-  };
+  }, [loading, isAuthenticated, router]);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    if (user?.monthlyIncome) {
+      setIncomeInput(String(user.monthlyIncome));
+    }
+  }, [user]);
 
   const handleLogPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentDebtId || !paymentAmount) return;
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount) || amount <= 0) return;
 
     setSubmittingPayment(true);
     try {
-      const res = await fetch(`/api/debts/${paymentDebtId}/payments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amountPaid: paymentAmount,
-          notes: paymentNotes,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Payment logging failed');
-      }
-
+      const result = logPayment(paymentDebtId, amount, paymentNotes || null);
+      if (!result) throw new Error('Failed to log payment');
       setPaymentDebtId(null);
       setPaymentAmount('');
       setPaymentNotes('');
-      fetchDashboardData();
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -150,15 +87,7 @@ export default function DashboardPage() {
 
     setSavingIncome(true);
     try {
-      const res = await fetch('/api/auth/me', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ monthlyIncome: parsedIncome }),
-      });
-
-      if (!res.ok) throw new Error('Failed to update income.');
-      const data = await res.json();
-      setUser((prev) => (prev ? { ...prev, monthlyIncome: data.user.monthlyIncome } : data.user));
+      updateProfile({ monthlyIncome: parsedIncome });
       setIsIncomeModalOpen(false);
     } catch (err: any) {
       alert(err.message);
@@ -171,20 +100,14 @@ export default function DashboardPage() {
   const activeDebts = useMemo(() => debts.filter((d) => d.remainingBalance > 0), [debts]);
   const totalPrincipal = useMemo(() => debts.reduce((acc, d) => acc + d.principalAmount, 0), [debts]);
   const totalRemaining = useMemo(() => activeDebts.reduce((acc, d) => acc + d.remainingBalance, 0), [activeDebts]);
-  const totalPaid = Math.max(0, totalPrincipal - totalRemaining);
-
-  // Part 1: Top-Level Stats
-  // 1. Total Debt
   const totalDebt = totalRemaining;
 
-  // 2. Interest This Month across all active debts using debtMath pure calculation
   const interestThisMonth = useMemo(() => {
     return activeDebts.reduce((sum, d) => {
       return sum + calculateMonthlyBleed(d.remainingBalance, d.interestType, d.interestRate, d.durationMonths || 12);
     }, 0);
   }, [activeDebts]);
 
-  // Active Strategy & Payoff Plan
   const activeStrategy = (user?.selectedStrategy as 'avalanche' | 'snowball' | 'fastest' | 'balanced') || 'avalanche';
   const monthlySurplus = user?.monthlySurplus || 3000;
 
@@ -207,7 +130,6 @@ export default function DashboardPage() {
     return generatePayoffSchedule(rawDebtsInput, monthlySurplus, activeStrategy);
   }, [rawDebtsInput, monthlySurplus, activeStrategy]);
 
-  // 3. Monthly EMI / Expected payment outflow for this month
   const monthlyOutflow = useMemo(() => {
     if (payoffPlan.schedule.length > 0) {
       return payoffPlan.schedule[0].totalSurplusAllocated;
@@ -215,59 +137,22 @@ export default function DashboardPage() {
     return Math.min(totalDebt, monthlySurplus);
   }, [payoffPlan, totalDebt, monthlySurplus]);
 
-  // 4. Debt-Free Progress percentage & visual bar
   const progressPercentage = totalPrincipal > 0 ? ((totalPrincipal - totalRemaining) / totalPrincipal) * 100 : 100;
   const clampedProgress = Math.min(100, Math.max(0, progressPercentage));
 
-  // Part 1: Secondary Stats Row
-  // Highest-interest debt
-  const highestInterestDebt = useMemo(() => {
-    if (activeDebts.length === 0) return null;
-    return [...activeDebts].sort((a, b) => b.effectiveAnnualCost - a.effectiveAnnualCost)[0];
-  }, [activeDebts]);
-
-  // Upcoming Payment (soonest due or month 1 top allocated debt)
-  const upcomingPayment = useMemo(() => {
-    if (activeDebts.length === 0) return null;
-    // Check if any active debt has month 1 payment > 0
-    const m1Payments = payoffPlan.schedule?.[0]?.payments?.filter((p) => p.paymentAmount > 0) || [];
-    if (m1Payments.length > 0) {
-      const topPay = m1Payments.sort((a, b) => b.paymentAmount - a.paymentAmount)[0];
-      const matchingDebt = activeDebts.find((d) => d.id === topPay.debtId);
-      return {
-        lenderName: topPay.lenderName,
-        amount: topPay.paymentAmount,
-        dueDate: matchingDebt?.dueDate || payoffPlan.schedule[0].monthName,
-      };
-    }
-    return {
-      lenderName: activeDebts[0].lenderName,
-      amount: Math.min(activeDebts[0].remainingBalance, monthlySurplus),
-      dueDate: activeDebts[0].dueDate || 'This Month',
-    };
-  }, [activeDebts, payoffPlan, monthlySurplus]);
-
-  // Total Monthly Bleed
-  const totalMonthlyBleed = useMemo(() => {
-    return activeDebts.reduce((sum, d) => sum + (d.monthlyBleed || 0), 0);
-  }, [activeDebts]);
-
-  // Highest EAC Debt
   const highestEacDebt = useMemo(() => {
     return activeDebts.length > 0
       ? [...activeDebts].sort((a, b) => b.effectiveAnnualCost - a.effectiveAnnualCost)[0]
       : null;
   }, [activeDebts]);
 
-  // Total Interest Remaining (projected over entire payoff duration)
-  const totalInterestRemaining = payoffPlan.totalInterestPaid;
+  const totalMonthlyBleed = useMemo(() => {
+    return activeDebts.reduce((sum, d) => sum + (d.monthlyBleed || 0), 0);
+  }, [activeDebts]);
 
-  // Debt-to-Income (DTI) Ratio
   const monthlyIncome = user?.monthlyIncome;
   const dtiRatio = monthlyIncome && monthlyIncome > 0 ? (monthlyOutflow / monthlyIncome) * 100 : null;
 
-  // Part 2: Visualizations Data
-  // 1. Debt by Lender (Sorted largest to smallest remaining balance)
   const debtsByLenderSorted = useMemo(() => {
     return [...activeDebts].sort((a, b) => b.remainingBalance - a.remainingBalance);
   }, [activeDebts]);
@@ -276,9 +161,8 @@ export default function DashboardPage() {
     return debtsByLenderSorted.length > 0 ? debtsByLenderSorted[0].remainingBalance : 1;
   }, [debtsByLenderSorted]);
 
-  // 2. Timeline chart data
   const timelineSchedule = useMemo(() => {
-    return payoffPlan.schedule.slice(0, 12); // First 12 months preview or full if <= 12
+    return payoffPlan.schedule.slice(0, 12);
   }, [payoffPlan]);
 
   const maxTimelineDebt = useMemo(() => {
@@ -286,7 +170,6 @@ export default function DashboardPage() {
     return Math.max(totalDebt, payoffPlan.schedule[0]?.remainingTotalDebt || 1);
   }, [payoffPlan, totalDebt]);
 
-  // Plain-Language Overall Explanation Memo in Active Language
   const overallExplanation = useMemo(() => {
     return generateDeterministicPlanExplanation(
       {
@@ -314,13 +197,17 @@ export default function DashboardPage() {
     );
   }
 
+  if (!user) return null;
+
   return (
     <div className="space-y-10 animate-in fade-in duration-300 pb-12">
-      {/* Header Banner - Spacious & Clean */}
+      {/* Trust & Privacy Notice */}
+      <TrustNotice />
+
+      {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 mb-2.5 border border-amber-500/20">
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
             <span>{t('currentActivePlan') || 'Active Strategy'}: {activeStrategy.toUpperCase()}</span>
           </div>
           <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
@@ -349,10 +236,47 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Guided Journey Progress Steps */}
+      {activeDebts.length < 2 && (
+        <div className="rounded-2xl bg-card border border-border px-5 py-4 shadow-xs overflow-x-auto">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">
+            Your Debt Freedom Journey — 6 Steps
+          </p>
+          <div className="flex items-center gap-0 min-w-max">
+            {[
+              { step: 1, label: 'Add Debts', href: '/debts/new', done: debts.length > 0 },
+              { step: 2, label: 'Compare Costs', href: '/debts', done: debts.length > 0 },
+              { step: 3, label: 'Understand EAC', href: '/debts', done: debts.length > 0 },
+              { step: 4, label: 'Choose Strategy', href: '/plan', done: !!user?.selectedStrategy },
+              { step: 5, label: 'Set Budget', href: '/plan', done: (user?.monthlySurplus || 0) > 0 },
+              { step: 6, label: 'Follow Plan', href: '/plan', done: false },
+            ].map((s, idx, arr) => (
+              <div key={s.step} className="flex items-center">
+                <Link href={s.href} className="flex flex-col items-center gap-1 group">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-extrabold transition-all ${
+                    s.done
+                      ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
+                      : 'bg-muted border-2 border-border text-muted-foreground group-hover:border-amber-500 group-hover:text-amber-600'
+                  }`}>
+                    {s.done ? <CheckCircle2 className="w-4 h-4" /> : s.step}
+                  </div>
+                  <span className={`text-[10px] font-bold whitespace-nowrap ${
+                    s.done ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                  }`}>{s.label}</span>
+                </Link>
+                {idx < arr.length - 1 && (
+                  <div className={`h-0.5 w-10 mx-1 rounded-full ${s.done ? 'bg-emerald-400' : 'bg-border'}`} />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Untangling Knot Progress Motif */}
       <UntangleKnotVisual progressPercentage={clampedProgress} totalDebtCount={activeDebts.length} />
 
-      {/* AI Explanation & Audio Player Card */}
+      {/* Voice Explanation */}
       {activeDebts.length > 0 && (
         <VoiceExplanationPlayer
           text={overallExplanation}
@@ -369,11 +293,64 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TOP-LEVEL STATS SECTION - Spacious 4 Cards                                */}
-      {/* ========================================================================= */}
+      {/* Financial Snapshot */}
+      {activeDebts.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Debt-Free Distance */}
+          <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 via-emerald-400/5 to-card border border-emerald-500/20 p-5 flex items-start gap-4 shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600">
+              <TrendingDown className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Debt-Free Distance</p>
+              <p className="mt-0.5 font-display text-xl sm:text-2xl font-extrabold text-foreground">
+                {'\u20b9'}{totalDebt.toLocaleString('en-IN')}{' '}
+                <span className="text-base font-semibold text-muted-foreground">to go</span>
+              </p>
+              <p className="text-xs text-muted-foreground font-medium mt-1">
+                You are <strong className="text-emerald-600">{'\u20b9'}{totalDebt.toLocaleString('en-IN')}</strong> away from being completely debt-free.
+                {payoffPlan.debtFreeDate && (
+                  <> Target: <strong className="text-foreground">{payoffPlan.debtFreeDate}</strong></>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Financial Health Score */}
+          {(() => {
+            const score = dtiRatio !== null
+              ? dtiRatio < 20 ? { label: 'Healthy', color: 'emerald', icon: ShieldCheck, desc: `Your debt payments are ${dtiRatio.toFixed(1)}% of income — well within range.` }
+              : dtiRatio < 40 ? { label: 'Moderate', color: 'amber', icon: AlertCircle, desc: `Debt payments are ${dtiRatio.toFixed(1)}% of income — manageable with discipline.` }
+              : { label: 'High Pressure', color: 'red', icon: AlertTriangle, desc: `Debt payments are ${dtiRatio.toFixed(1)}% of income — prioritize highest-cost debt first.` }
+              : { label: 'Set Income', color: 'slate', icon: Wallet, desc: 'Enter your monthly income on the plan page to see your financial health score.' };
+
+            const colorMap: Record<string, string> = {
+              emerald: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20',
+              amber: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20',
+              red: 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20',
+              slate: 'bg-muted text-muted-foreground border-border',
+            };
+            const ScoreIcon = score.icon;
+
+            return (
+              <div className={`rounded-2xl border p-5 flex items-start gap-4 shadow-xs ${colorMap[score.color]}`}>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-current/10">
+                  <ScoreIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider">Financial Health Score</p>
+                  <p className="mt-0.5 font-display text-xl sm:text-2xl font-extrabold">{score.label}</p>
+                  <p className="text-xs font-medium mt-1 opacity-80">{score.desc}</p>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Top-Level Stats */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Metric 1: Total Debt */}
+        {/* Total Debt */}
         <div className="rounded-3xl bg-card p-6 shadow-sm border border-border flex flex-col justify-between hover:border-amber-500/30 transition-colors">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -385,7 +362,7 @@ export default function DashboardPage() {
           </div>
           <div className="mt-4">
             <div className="font-display text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
-              ₹{totalDebt.toLocaleString('en-IN')}
+              {'\u20b9'}{totalDebt.toLocaleString('en-IN')}
             </div>
             <div className="mt-1 text-xs text-muted-foreground font-medium">
               {t('totalOwedSub') || `Across ${activeDebts.length} active loans`}
@@ -393,7 +370,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Metric 2: Monthly Bleed */}
+        {/* Monthly Bleed */}
         <div className="rounded-3xl bg-card p-6 shadow-sm border border-border flex flex-col justify-between hover:border-red-500/30 transition-colors">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -405,7 +382,7 @@ export default function DashboardPage() {
           </div>
           <div className="mt-4">
             <div className="font-display text-3xl sm:text-4xl font-extrabold text-destructive tracking-tight">
-              ₹{totalMonthlyBleed.toLocaleString('en-IN')}
+              {'\u20b9'}{totalMonthlyBleed.toLocaleString('en-IN')}
               <span className="text-xs sm:text-sm font-sans font-normal text-muted-foreground ml-1">/mo</span>
             </div>
             <div className="mt-1 text-xs text-muted-foreground font-medium">
@@ -414,7 +391,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Metric 3: Highest Rate Debt */}
+        {/* Highest Rate Debt */}
         <div className="rounded-3xl bg-card p-6 shadow-sm border border-border flex flex-col justify-between hover:border-amber-500/30 transition-colors">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -440,7 +417,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Metric 4: Debt-Free Target */}
+        {/* Debt-Free Target */}
         <div className="rounded-3xl bg-card p-6 shadow-sm border border-border flex flex-col justify-between hover:border-emerald-500/30 transition-colors">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -452,23 +429,20 @@ export default function DashboardPage() {
           </div>
           <div className="mt-4">
             <div className="font-display text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
-              {payoffPlan?.debtFreeDate || '12 Months'}
+              {payoffPlan?.debtFreeDate || '—'}
             </div>
             <div className="mt-1 text-xs text-muted-foreground font-medium">
               {payoffPlan?.totalMonths
                 ? `${payoffPlan.totalMonths} months with current plan`
-                : 'Accelerated payoff timeline'}
+                : 'Add debts to see your target'}
             </div>
           </div>
         </div>
       </div>
 
-
-      {/* ========================================================================= */}
-      {/* PART 2: TWO VISUALIZATIONS                                                */}
-      {/* ========================================================================= */}
+      {/* Two Visualizations */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Visualization 1: Debt by Lender (Horizontal Bar Chart) */}
+        {/* Debt by Lender */}
         <div className="rounded-2xl bg-card p-6 border border-border shadow-sm space-y-5 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
@@ -503,12 +477,10 @@ export default function DashboardPage() {
                             {debt.effectiveAnnualCost}% EAC
                           </span>
                           <span className="font-extrabold text-foreground font-display">
-                            ₹{debt.remainingBalance.toLocaleString('en-IN')}
+                            {'\u20b9'}{debt.remainingBalance.toLocaleString('en-IN')}
                           </span>
                         </div>
                       </div>
-
-                      {/* Bar Track */}
                       <div className="h-4 w-full rounded-lg bg-muted/60 overflow-hidden relative flex items-center p-0.5 border border-border/40">
                         <div
                           className="h-full rounded-md bg-gradient-to-r from-primary to-amber-500 transition-all duration-500 flex items-center justify-end px-2"
@@ -516,7 +488,7 @@ export default function DashboardPage() {
                         >
                           {percentageWidth > 25 && (
                             <span className="text-[10px] font-bold text-white drop-shadow-sm font-display">
-                              ₹{debt.remainingBalance.toLocaleString('en-IN')}
+                              {'\u20b9'}{debt.remainingBalance.toLocaleString('en-IN')}
                             </span>
                           )}
                         </div>
@@ -529,28 +501,28 @@ export default function DashboardPage() {
           </div>
 
           <div className="pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-            <span>Largest single balance: <strong className="text-foreground">₹{maxLenderBalance.toLocaleString('en-IN')}</strong></span>
+            <span>Largest single balance: <strong className="text-foreground">{'\u20b9'}{maxLenderBalance.toLocaleString('en-IN')}</strong></span>
             <Link href="/debts" className="text-primary font-semibold hover:underline">
-              View Comparison Table →
+              View Comparison Table
             </Link>
           </div>
         </div>
 
-        {/* Visualization 2: Debt Payoff Timeline (Projected Remaining Balance Month-by-Month) */}
+        {/* Debt Payoff Timeline */}
         <div className="rounded-2xl bg-card p-6 border border-border shadow-sm space-y-5 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-display text-lg font-bold text-foreground">Debt Payoff Timeline</h2>
                 <p className="text-xs text-muted-foreground">
-                  Projected remaining balance with ₹{monthlySurplus.toLocaleString('en-IN')}/mo surplus ({activeStrategy})
+                  Projected remaining balance with {'\u20b9'}{monthlySurplus.toLocaleString('en-IN')}/mo surplus ({activeStrategy})
                 </p>
               </div>
               <Link
                 href="/plan"
                 className="text-xs font-semibold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-full hover:bg-primary hover:text-primary-foreground transition-all"
               >
-                Change Strategy →
+                Change Strategy
               </Link>
             </div>
 
@@ -560,11 +532,8 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="mt-6 space-y-3">
-                {/* Timeline Step Bars */}
                 {timelineSchedule.map((month, idx) => {
-                  const isFinal = idx === timelineSchedule.length - 1 || month.remainingTotalDebt === 0;
                   const barPercent = Math.max(0, (month.remainingTotalDebt / maxTimelineDebt) * 100);
-
                   return (
                     <div key={month.monthIndex} className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
@@ -574,17 +543,15 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2">
                           {month.remainingTotalDebt === 0 ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 animate-pulse">
-                              <Sparkles className="w-3 h-3" /> Debt-free 🎉
+                              Debt-free!
                             </span>
                           ) : (
                             <span className="font-display font-extrabold text-foreground">
-                              ₹{month.remainingTotalDebt.toLocaleString('en-IN')}
+                              {'\u20b9'}{month.remainingTotalDebt.toLocaleString('en-IN')}
                             </span>
                           )}
                         </div>
                       </div>
-
-                      {/* Bar */}
                       <div className="h-3 w-full rounded-full bg-muted/60 overflow-hidden relative border border-border/40">
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
@@ -607,23 +574,21 @@ export default function DashboardPage() {
               Target Debt-Free Date: <strong className="text-foreground">{payoffPlan.debtFreeDate || 'N/A'}</strong> ({payoffPlan.totalMonths} months)
             </span>
             <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-              ₹{payoffPlan.totalInterestPaid.toLocaleString('en-IN')} total interest
+              {'\u20b9'}{payoffPlan.totalInterestPaid.toLocaleString('en-IN')} total interest
             </span>
           </div>
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* ACTIVE INFORMAL DEBTS LIST & PAYMENT LOGGING                               */}
-      {/* ========================================================================= */}
+      {/* Active Informal Debts List */}
       <div className="rounded-2xl bg-card p-6 shadow-sm border border-border space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-4">
           <div>
             <h2 className="font-display text-xl font-bold text-foreground">Active Informal Debts</h2>
-            <p className="text-xs text-muted-foreground">Quick overview of current lenders & interest metrics.</p>
+            <p className="text-xs text-muted-foreground">Quick overview of current lenders &amp; interest metrics.</p>
           </div>
           <Link href="/debts" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
-            Full Comparison Table →
+            Full Comparison Table
           </Link>
         </div>
 
@@ -659,20 +624,20 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <UrgencyBadge urgencyTier={debt.urgencyTier} eac={debt.effectiveAnnualCost} />
+                    <UrgencyBadge urgencyTier={debt.urgencyTier as 'high' | 'medium' | 'low'} eac={debt.effectiveAnnualCost} />
                     <SocialWeightBadge socialWeight={debt.socialWeight} lenderType={debt.lenderType} />
                   </div>
-                  <p className="text-xs text-muted-foreground italic">"{debt.repaymentExpectation}"</p>
+                  <p className="text-xs text-muted-foreground italic">&quot;{debt.repaymentExpectation}&quot;</p>
                 </div>
 
                 <div className="flex items-center gap-6 justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-border">
                   <div className="text-right">
                     <div className="text-xs text-muted-foreground">Remaining Balance</div>
                     <div className="font-display text-xl font-extrabold text-foreground">
-                      ₹{debt.remainingBalance.toLocaleString('en-IN')}
+                      {'\u20b9'}{debt.remainingBalance.toLocaleString('en-IN')}
                     </div>
                     <div className="text-[11px] text-muted-foreground">
-                      Bleed: <strong className="text-destructive font-semibold">₹{debt.monthlyBleed}/mo</strong>
+                      Bleed: <strong className="text-destructive font-semibold">{'\u20b9'}{debt.monthlyBleed}/mo</strong>
                     </div>
                   </div>
 
@@ -694,11 +659,11 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Guided Next Step Journey Card */}
+      {/* Guided Next Step */}
       <div className="rounded-2xl bg-card border border-border p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-primary">
-            Step 6 of 6 • Actionable Payoff Plan & Simulator
+            Step 6 of 6 - Actionable Payoff Plan &amp; Simulator
           </span>
           <h4 className="font-display text-lg font-bold text-foreground mt-0.5">
             Optimize your payoff order with Avalanche vs Snowball
@@ -719,7 +684,7 @@ export default function DashboardPage() {
             href="/plan"
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
           >
-            <span>Open Repayment Planner & Simulator</span>
+            <span>Open Repayment Planner &amp; Simulator</span>
             <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
@@ -741,14 +706,14 @@ export default function DashboardPage() {
               </button>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Current remaining balance: ₹
+              Current remaining balance: {'\u20b9'}
               {debts.find((d) => d.id === paymentDebtId)?.remainingBalance.toLocaleString('en-IN')}
             </p>
 
             <form onSubmit={handleLogPayment} className="mt-4 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                  Amount Paid (₹)
+                  Amount Paid ({'\u20b9'})
                 </label>
                 <div className="relative">
                   <IndianRupee className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
@@ -797,14 +762,12 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Monthly Income Settings Modal */}
+      {/* Income Modal */}
       {isIncomeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl border border-border animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-display text-lg font-bold text-foreground">
-                Set Monthly Income
-              </h3>
+              <h3 className="font-display text-lg font-bold text-foreground">Set Monthly Income</h3>
               <button
                 onClick={() => setIsIncomeModalOpen(false)}
                 className="text-muted-foreground hover:text-foreground"
@@ -819,7 +782,7 @@ export default function DashboardPage() {
             <form onSubmit={handleSaveIncome} className="mt-4 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                  Monthly Take-Home Income (₹)
+                  Monthly Take-Home Income ({'\u20b9'})
                 </label>
                 <div className="relative">
                   <IndianRupee className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />

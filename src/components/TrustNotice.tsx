@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Trash2, X, AlertTriangle } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useAuth } from '@/context/AuthContext';
 
 interface ClearDebtsModalProps {
   isOpen: boolean;
@@ -12,21 +13,17 @@ interface ClearDebtsModalProps {
 
 export function ClearDebtsModal({ isOpen, onClose, onSuccess }: ClearDebtsModalProps) {
   const { t } = useLanguage();
+  const { clearDebts } = useAuth();
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleClearAll = async () => {
+  const handleClearAll = () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/reset-debts', { method: 'POST' });
-      if (res.ok) {
-        onSuccess?.();
-        onClose();
-        if (typeof window !== 'undefined') {
-          window.location.reload();
-        }
-      }
+      clearDebts();
+      onSuccess?.();
+      onClose();
     } catch (err) {
       console.error('Failed to clear debts:', err);
     } finally {
@@ -105,6 +102,52 @@ export function ClearDebtsButton({ onDataReset, className = '' }: { onDataReset?
   );
 }
 
-// Backward-compatible export
-export const TrustNotice = () => null;
+export function TrustNotice({ className = '' }: { className?: string }) {
+  const [dismissed, setDismissed] = React.useState(false);
 
+  // Persist dismiss across page navigations within the session
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isDismissed = sessionStorage.getItem('rinmukht_trust_dismissed') === '1';
+      setDismissed(isDismissed);
+    }
+  }, []);
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('rinmukht_trust_dismissed', '1');
+    }
+  };
+
+  if (dismissed) return null;
+
+  return (
+    <div className={`rounded-2xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/25 px-5 py-4 flex items-start gap-4 shadow-xs ${className}`}>
+      {/* Icon */}
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 mt-0.5">
+        <AlertTriangle className="w-5 h-5" />
+      </div>
+
+      {/* Text */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+          Rinmukht helps you understand and compare the debts you entered.{' '}
+          <span className="font-semibold">It does not provide guaranteed financial, legal, or lending advice.</span>
+        </p>
+        <p className="mt-1 text-xs text-amber-800 dark:text-amber-300/80 leading-relaxed">
+          <strong>Your privacy:</strong> All debt details are stored only in your Rinmukht account in this browser. We do not share, sell, or transmit your data to third parties. You can delete all your data at any time using the &quot;Clear Debts&quot; button.
+        </p>
+      </div>
+
+      {/* Dismiss */}
+      <button
+        onClick={handleDismiss}
+        className="shrink-0 p-1.5 rounded-lg text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/40 transition-colors"
+        aria-label="Dismiss notice"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}

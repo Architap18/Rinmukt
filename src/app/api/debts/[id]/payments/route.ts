@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { prisma } from '@/lib/db';
-import { calculateEffectiveAnnualCost, calculateMonthlyBleed, calculateUrgencyTier } from '@/lib/debtMath';
+import { getAppState, saveAppState, enrichExistingDebt } from '@/lib/sessionStore';
+import { calculateUrgencyTier } from '@/lib/debtMath';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getCurrentUser();
@@ -17,47 +17,34 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: 'Please enter a valid payment amount.' }, { status: 400 });
     }
 
-    const debt = await prisma.debt.findFirst({
-      where: { id: params.id, userId: session.userId },
-    });
-
+    const state = getAppState();
+    const debt = state.debts.find((d) => d.id === params.id);
     if (!debt) {
       return NextResponse.json({ error: 'Debt not found' }, { status: 404 });
     }
 
     const newBalance = Math.max(0, debt.remainingBalance - amount);
-    const newEac = calculateEffectiveAnnualCost(newBalance, debt.interestType, debt.interestRate, debt.durationMonths);
-    const newBleed = calculateMonthlyBleed(newBalance, debt.interestType, debt.interestRate, debt.durationMonths);
-    const newUrgency = calculateUrgencyTier(newEac);
-    const newStatus = newBalance === 0 ? 'paid_off' : 'active';
+    const paymentLog = {
+      id: 'pay-' + Date.now(),
+      debtId: debt.id,
+      amountPaid: amount,
+      notes: notes || 'Payment logged',
+      paidAt: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(),
+    };
 
-    const [paymentLog, updatedDebt] = await prisma.$transaction([
-      prisma.paymentLog.create({
-        data: {
-          debtId: debt.id,
-          amountPaid: amount,
-          notes: notes || 'Payment logged',
-          paidAt: paidAt ? new Date(paidAt) : new Date(),
-        },
-      }),
-      prisma.debt.update({
-        where: { id: debt.id },
-        data: {
-          remainingBalance: newBalance,
-          effectiveAnnualCost: newEac,
-          monthlyBleed: newBleed,
-          urgencyTier: newUrgency,
-          status: newStatus,
-        },
-        include: {
-          paymentLogs: {
-            orderBy: { paidAt: 'desc' },
-          },
-        },
-      }),
-    ]);
+    const updated = enrichExistingDebt({
+      ...debt,
+      remainingBalance: newBalance,
+      status: newBalance === 0 ? 'paid_off' : 'active',
+      updatedAt: new Date().toISOString(),
+      paymentLogs: [paymentLog, ...debt.paymentLogs],
+    });
+    updated.urgencyTier = calculateUrgencyTier(updated.effectiveAnnualCost);
 
-    return NextResponse.json({ paymentLog, debt: updatedDebt });
+    state.debts = state.debts.map((d) => (d.id === params.id ? updated : d));
+    saveAppState(state);
+
+    return NextResponse.json({ paymentLog, debt: updated });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Payment logging failed' }, { status: 500 });
   }

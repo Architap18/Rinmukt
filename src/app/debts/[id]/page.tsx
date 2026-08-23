@@ -3,74 +3,46 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, IndianRupee, Calendar, CheckCircle2, History, PlusCircle, Trash2, Globe } from 'lucide-react';
+import { ArrowLeft, IndianRupee, PlusCircle, History, Globe } from 'lucide-react';
 import { UrgencyBadge, SocialWeightBadge, LenderTypeBadge } from '@/components/UrgencyBadge';
 import { VoiceExplanationPlayer } from '@/components/VoiceExplanationPlayer';
 import { useLanguage } from '@/context/LanguageContext';
 import { Language, languageNames } from '@/lib/translations';
 import { generateDeterministicDebtExplanation } from '@/lib/explanationService';
-
-interface PaymentLog {
-  id: string;
-  amountPaid: number;
-  paidAt: string;
-  notes: string | null;
-}
-
-interface DebtDetail {
-  id: string;
-  lenderName: string;
-  lenderType: string;
-  principalAmount: number;
-  remainingBalance: number;
-  interestDescription?: string | null;
-  interestType: string;
-  interestRate: number;
-  startDate?: string | null;
-  durationMonths: number;
-  repaymentExpectation: string;
-  socialWeight: string;
-  effectiveAnnualCost: number;
-  monthlyBleed: number;
-  urgencyTier: 'high' | 'medium' | 'low';
-  financialUrgency?: 'high' | 'medium' | 'low';
-  relationalUrgency?: 'high' | 'medium' | 'low';
-  status: string;
-  createdAt: string;
-  paymentLogs: PaymentLog[];
-}
+import { useAuth } from '@/context/AuthContext';
+import { StoredDebt } from '@/lib/localStorage';
 
 export default function DebtDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { language, setLanguage } = useLanguage();
-  const [debt, setDebt] = useState<DebtDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { loading, isAuthenticated, getDebt, logPayment, refreshDebts } = useAuth();
+
+  const [debt, setDebt] = useState<StoredDebt | null>(null);
 
   // Form State
   const [amountPaid, setAmountPaid] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
-  const fetchDebt = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/debts/${params.id}`);
-      if (!res.ok) {
-        router.push('/debts');
-        return;
-      }
-      const data = await res.json();
-      setDebt(data.debt);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchDebt();
-  }, [params.id]);
+    if (!loading && !isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+    const found = getDebt(params.id);
+    if (!found) {
+      router.push('/debts');
+      return;
+    }
+    setDebt(found);
+  }, [loading, isAuthenticated, params.id, getDebt, router]);
+
+  // Re-fetch after payment
+  const refreshDebt = () => {
+    const found = getDebt(params.id);
+    if (found) setDebt(found);
+  };
 
   const explanation = useMemo(() => {
     if (!debt) return '';
@@ -92,28 +64,24 @@ export default function DebtDetailPage({ params }: { params: { id: string } }) {
     );
   }, [debt, language]);
 
-  const handleAddPayment = async (e: React.FormEvent) => {
+  const handleAddPayment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amountPaid || parseFloat(amountPaid) <= 0) return;
+    setPaymentError(null);
+    const amount = parseFloat(amountPaid);
+    if (isNaN(amount) || amount <= 0) {
+      setPaymentError('Please enter a valid payment amount greater than 0.');
+      return;
+    }
 
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/debts/${params.id}/payments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amountPaid, notes }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to log payment');
-      }
-
+      const result = logPayment(params.id, amount, notes || null);
+      if (!result) throw new Error('Failed to log payment');
       setAmountPaid('');
       setNotes('');
-      fetchDebt();
+      refreshDebt();
     } catch (err: any) {
-      alert(err.message);
+      setPaymentError(err.message);
     } finally {
       setSubmitting(false);
     }
@@ -171,16 +139,16 @@ export default function DebtDetailPage({ params }: { params: { id: string } }) {
             </h1>
             <LenderTypeBadge lenderType={debt.lenderType} />
           </div>
-          <p className="mt-1 text-xs text-muted-foreground italic">"{debt.repaymentExpectation}"</p>
+          <p className="mt-1 text-xs text-muted-foreground italic">&quot;{debt.repaymentExpectation}&quot;</p>
         </div>
 
         <div className="flex items-center gap-2">
-          <UrgencyBadge urgencyTier={debt.urgencyTier} eac={debt.effectiveAnnualCost} />
+          <UrgencyBadge urgencyTier={debt.urgencyTier as 'high' | 'medium' | 'low'} eac={debt.effectiveAnnualCost} />
           <SocialWeightBadge socialWeight={debt.socialWeight} lenderType={debt.lenderType} />
         </div>
       </div>
 
-      {/* AI Voice Explanation Card */}
+      {/* Voice Explanation Card */}
       <VoiceExplanationPlayer
         text={explanation}
         language={language}
@@ -194,8 +162,8 @@ export default function DebtDetailPage({ params }: { params: { id: string } }) {
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Remaining Balance</div>
             <div className="font-display text-3xl sm:text-4xl font-extrabold text-foreground mt-1">
-              ₹{debt.remainingBalance.toLocaleString('en-IN')}{' '}
-              <span className="text-xs sm:text-sm font-semibold text-muted-foreground">/ ₹{debt.principalAmount.toLocaleString('en-IN')} original</span>
+              {'\u20b9'}{debt.remainingBalance.toLocaleString('en-IN')}{' '}
+              <span className="text-xs sm:text-sm font-semibold text-muted-foreground">/ {'\u20b9'}{debt.principalAmount.toLocaleString('en-IN')} original</span>
             </div>
           </div>
           <div className="text-right">
@@ -214,17 +182,17 @@ export default function DebtDetailPage({ params }: { params: { id: string } }) {
           />
         </div>
         <div className="flex justify-between text-xs font-bold text-muted-foreground">
-          <span>₹{paidAmount.toLocaleString('en-IN')} paid ({Math.round(progressPct)}%)</span>
-          <span>₹{debt.remainingBalance.toLocaleString('en-IN')} remaining</span>
+          <span>{'\u20b9'}{paidAmount.toLocaleString('en-IN')} paid ({Math.round(progressPct)}%)</span>
+          <span>{'\u20b9'}{debt.remainingBalance.toLocaleString('en-IN')} remaining</span>
         </div>
       </div>
 
-      {/* Overview Cards: Financial & Relational Attributes */}
+      {/* Overview Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="rounded-2xl bg-card p-4 border border-border shadow-sm">
           <div className="text-xs font-bold text-muted-foreground uppercase">Monthly Bleed</div>
           <div className="font-display text-xl font-extrabold text-destructive mt-1">
-            ₹{debt.monthlyBleed.toLocaleString('en-IN')} <span className="text-xs font-normal text-muted-foreground">/ mo</span>
+            {'\u20b9'}{debt.monthlyBleed.toLocaleString('en-IN')} <span className="text-xs font-normal text-muted-foreground">/ mo</span>
           </div>
           <div className="text-[11px] text-muted-foreground mt-0.5 font-medium">Interest draining away</div>
         </div>
@@ -241,14 +209,8 @@ export default function DebtDetailPage({ params }: { params: { id: string } }) {
           <div className="text-xs font-semibold text-muted-foreground uppercase">Start Date</div>
           <div className="font-display text-base font-bold text-foreground mt-1">
             {debt.startDate
-              ? new Date(debt.startDate).toLocaleDateString('en-IN', {
-                  month: 'short',
-                  year: 'numeric',
-                })
-              : new Date(debt.createdAt).toLocaleDateString('en-IN', {
-                  month: 'short',
-                  year: 'numeric',
-                })}
+              ? new Date(debt.startDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+              : new Date(debt.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
           </div>
           <div className="text-[11px] text-muted-foreground mt-0.5">Estimated loan origin</div>
         </div>
@@ -263,7 +225,7 @@ export default function DebtDetailPage({ params }: { params: { id: string } }) {
 
       {debt.interestDescription && (
         <div className="rounded-2xl bg-muted/40 p-4 border border-border text-xs text-muted-foreground">
-          <strong className="text-foreground font-semibold">Original Description:</strong> "{debt.interestDescription}"
+          <strong className="text-foreground font-semibold">Original Description:</strong> &quot;{debt.interestDescription}&quot;
         </div>
       )}
 
@@ -282,9 +244,15 @@ export default function DebtDetailPage({ params }: { params: { id: string } }) {
             </div>
           ) : (
             <form onSubmit={handleAddPayment} className="space-y-4">
+              {paymentError && (
+                <div className="rounded-xl bg-destructive/10 p-3 text-xs font-medium text-destructive border border-destructive/20">
+                  {paymentError}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                  Amount Paid (₹)
+                  Amount Paid ({'\u20b9'})
                 </label>
                 <div className="relative">
                   <IndianRupee className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
@@ -343,7 +311,7 @@ export default function DebtDetailPage({ params }: { params: { id: string } }) {
                 >
                   <div>
                     <div className="font-semibold text-foreground">
-                      ₹{log.amountPaid.toLocaleString('en-IN')}
+                      {'\u20b9'}{log.amountPaid.toLocaleString('en-IN')}
                     </div>
                     {log.notes && <div className="text-[11px] text-muted-foreground">{log.notes}</div>}
                   </div>
